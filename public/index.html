@@ -41,15 +41,20 @@
   #conn.bad{background:#f44336}
 
   /* table */
-  #game{height:100dvh;overflow:hidden}
-  .top{display:flex;gap:8px;overflow-x:auto;padding:10px;justify-content:center;flex-wrap:wrap}
+  #game{height:100vh;height:100dvh;overflow:hidden}
+  .scrollarea{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;display:flex;flex-direction:column}
+  .scrollarea>.mid{margin:auto 0}
+  .dock{flex:none;background:rgba(0,0,0,.35);border-top:1px solid rgba(255,255,255,.12);padding-top:8px}
+  .handhint{text-align:center;font-size:.72rem;color:var(--muted);margin-top:6px}
+  .top{display:flex;gap:8px;padding:10px;justify-content:center;flex-wrap:wrap;flex:none}
+  .mid{flex:none}
   .opp{background:rgba(0,0,0,.3);border:2px solid transparent;border-radius:14px;padding:8px 12px;min-width:92px;text-align:center}
   .opp.done{opacity:.65}
   .opp.turn{border-color:var(--gold);box-shadow:0 0 14px #f4c54288}
   .opp .n{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
   .opp .c{color:var(--muted);font-size:.85rem}
   .opp.last .c::after{content:" · dernier à poser";color:var(--gold)}
-  .mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:6px 12px;min-height:0}
+  .mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:6px 12px}
   .pile{position:relative;width:70px;height:98px}
   .pile .back{position:absolute;inset:0}
   .announce{font-size:1.35rem;font-weight:800;text-align:center}
@@ -60,12 +65,14 @@
   .status{color:var(--muted);text-align:center;min-height:1.3em}
   .status.me{color:var(--gold);font-weight:700}
   .actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:0 10px}
+  .actions button{flex:1 1 0;min-width:0;padding:12px 8px}
   .ranks{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:0 10px;max-width:520px;margin:0 auto}
   .ranks button{padding:8px 0;width:44px;border-radius:10px;background:rgba(255,255,255,.16);color:#fff}
   .ranks button.sel{background:var(--gold);color:#111}
-  .hand{display:flex;justify-content:center;padding:14px 8px calc(14px + env(safe-area-inset-bottom));overflow-x:auto;min-height:130px}
-  .hand .card{margin-left:-26px;flex:none;transition:transform .12s}
-  .hand .card:first-child{margin-left:0}
+  .hand{display:flex;padding:28px 12px calc(12px + env(safe-area-inset-bottom));overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;scrollbar-width:thin;min-height:140px}
+  .hand .card{margin-left:-14px;flex:none;transition:transform .12s;cursor:pointer}
+  .hand .card:first-child{margin-left:auto}
+  .hand .card:last-child{margin-right:auto}
   .hand .card.sel{transform:translateY(-18px);box-shadow:0 0 0 3px var(--gold),0 6px 14px #0008}
   .card{width:62px;height:90px;background:var(--card);color:var(--ink);border-radius:8px;box-shadow:0 2px 6px #0007;position:relative;user-select:none;flex:none}
   .card.red{color:var(--red)}
@@ -80,6 +87,7 @@
   .bar{display:flex;justify-content:space-between;align-items:center;padding:8px 10px}
   .bar .small{padding:6px 12px;font-size:.85rem}
   .bar span{color:var(--muted);font-size:.85rem}
+  @media (max-height:700px),(max-width:420px){.card{width:56px;height:82px}.card .tl{font-size:.9rem}.card .mid2{font-size:1.7rem;padding-top:12px}.pile{width:56px;height:80px}}
   .logbtn{position:fixed;left:10px;bottom:10px;z-index:30;padding:6px 12px;font-size:.85rem}
   #logbox{position:fixed;left:10px;top:50px;width:min(92vw,380px);max-height:50vh;overflow:auto;background:#000d;border-radius:14px;padding:12px;z-index:30;font-size:.9rem}
   #logbox p{margin:0 0 6px;color:#e6f2ea}
@@ -147,20 +155,25 @@
 <!-- JEU -->
 <div id="game" class="screen hidden">
   <div class="bar"><button class="ghost small" id="btnLog">📜 Journal</button><span id="gameCode"></span><button class="ghost small" id="btnQuit">🚪 Quitter</button></div>
-  <div class="top" id="opps"></div>
-  <div class="mid">
-    <div class="pile" id="pile"></div>
-    <div class="announce" id="announce"></div>
-    <div class="counts" id="counts"></div>
-    <div class="status" id="status"></div>
-    <div class="ranks hidden" id="ranks"></div>
+  <div class="scrollarea">
+    <div class="top" id="opps"></div>
+    <div class="mid">
+      <div class="pile" id="pile"></div>
+      <div class="announce" id="announce"></div>
+      <div class="counts" id="counts"></div>
+      <div class="status" id="status"></div>
+      <div class="ranks hidden" id="ranks"></div>
+    </div>
+  </div>
+  <div class="dock">
     <div class="actions">
       <button id="btnPlay">Poser la carte</button>
       <button id="btnSkip" class="ghost">Passer</button>
       <button id="btnAccuse" class="danger">Tu bluffes !</button>
     </div>
+    <div class="handhint" id="handhint">← fais glisser tes cartes →</div>
+    <div class="hand" id="hand"></div>
   </div>
-  <div class="hand" id="hand"></div>
   <div id="logbox" class="hidden"></div>
 </div>
 
@@ -351,7 +364,7 @@
     $('btnPlay').textContent = (state.can.chooseRank ? 'Poser & annoncer' : 'Poser') + (k ? ` (${k} carte${k > 1 ? 's' : ''})` : '');
 
     // main
-    const hand = $('hand'); hand.textContent = '';
+    const hand = $('hand'); const keepX = hand.scrollLeft; hand.textContent = '';
     for (const c of state.hand) {
       const el = cardEl(c, selected.has(c.id) ? 'sel' : '');
       el.onclick = () => {
@@ -363,6 +376,8 @@
       hand.append(el);
     }
     if (!state.hand.length && state.phase === 'playing') hand.textContent = 'Plus de cartes ! 🎉';
+    $('handhint').classList.toggle('hidden', state.hand.length < 6);
+    hand.scrollLeft = keepX;
 
     // journal
     const lb = $('logbox'); lb.classList.toggle('hidden', !logOpen); lb.textContent = '';
