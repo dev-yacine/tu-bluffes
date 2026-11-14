@@ -207,10 +207,12 @@ function leaveMidGame(room, p) {
 
 function act(room, p, msg) {
   if (room.phase !== 'playing') fail('La partie n\'est pas en cours.');
-  const cur = room.players[room.turnIdx];
-  if (cur.id !== p.id) fail('Ce n\'est pas ton tour.');
   const last = room.lastPlacerId ? byId(room, room.lastPlacerId) : null;
   const lastEmpty = last && last.hand.length === 0;
+  if (msg.type !== 'accuse') {
+    const cur = room.players[room.turnIdx];
+    if (cur.id !== p.id) fail('Ce n\'est pas ton tour.');
+  }
 
   if (msg.type === 'play') {
     if (lastEmpty) fail('Le joueur précédent n\'a plus de cartes : accuse-le ou passe.');
@@ -252,7 +254,9 @@ function act(room, p, msg) {
   }
 
   if (msg.type === 'accuse') {
-    if (!room.pile.length || !last) fail('Il n\'y a personne à accuser.');
+    if (p.finished) fail('Tu as déjà fini : tu ne peux plus accuser.');
+    if (!room.lastPlay || !last) fail('Il n\'y a personne à accuser (quelqu\'un a peut-être accusé avant toi).');
+    if (last.id === p.id) fail('Tu ne peux pas t\'accuser toi-même.');
     const cards = room.lastPlay.cards;
     const bluff = cards.some((c) => c.rank !== room.currentRank); // un joker est toujours un bluff
     const loser = bluff ? last : p;      // celui qui ramasse
@@ -305,7 +309,7 @@ function viewFor(room, p) {
     can: {
       play: myTurn && p.hand.length > 0 && !lastEmpty,
       skip: myTurn && hasPile,
-      accuse: myTurn && hasPile,
+      accuse: playing && !p.finished && !!last && last.id !== p.id && !!room.lastPlay,
       chooseRank: myTurn && room.currentRank === null,
     },
     labels: LABELS,
