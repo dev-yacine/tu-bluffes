@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tu bluffes !</title>
+<style>
+  :root{
+    --felt:#0f5132; --felt2:#0b3d26; --card:#fbfaf5; --ink:#1b1b1b; --red:#c62828;
+    --gold:#f4c542; --accent:#e53935; --muted:#b9d6c6;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff;
+    background:radial-gradient(ellipse at center,var(--felt) 0%,var(--felt2) 100%) fixed;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .hidden{display:none!important}
+  button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:12px 18px;font-weight:700;color:#1b1b1b;background:var(--gold)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.danger{background:var(--accent);color:#fff}
+  button.ghost{background:rgba(255,255,255,.14);color:#fff}
+  input{font:inherit;padding:12px 14px;border-radius:12px;border:2px solid transparent;width:100%;background:#fff;color:#111}
+  input:focus{outline:none;border-color:var(--gold)}
+  .screen{min-height:100%;display:flex;flex-direction:column}
+  .center{margin:auto;width:min(92vw,420px);padding:24px 0}
+  h1{font-size:2.4rem;margin:0 0 4px;text-align:center}
+  .sub{text-align:center;color:var(--muted);margin:0 0 22px}
+  .panel{background:rgba(0,0,0,.28);border-radius:18px;padding:18px;margin-bottom:14px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+  label{display:block;font-size:.85rem;color:var(--muted);margin:0 0 6px}
+  .code{font-size:2.6rem;font-weight:800;letter-spacing:.3em;text-align:center;color:var(--gold)}
+  .plist{list-style:none;padding:0;margin:12px 0}
+  .plist li{padding:10px 12px;background:rgba(255,255,255,.08);border-radius:10px;margin-bottom:6px;display:flex;justify-content:space-between}
+  .tag{font-size:.75rem;background:var(--gold);color:#111;border-radius:99px;padding:2px 8px;margin-left:8px}
+  .off{opacity:.5}
+  #toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:#000c;padding:10px 16px;border-radius:12px;z-index:50;max-width:90vw;text-align:center}
+  #conn{position:fixed;right:10px;bottom:10px;width:10px;height:10px;border-radius:50%;background:#4caf50;z-index:40}
+  #conn.bad{background:#f44336}
+
+  /* table */
+  #game{height:100dvh;overflow:hidden}
+  .top{display:flex;gap:8px;overflow-x:auto;padding:10px;justify-content:center;flex-wrap:wrap}
+  .opp{background:rgba(0,0,0,.3);border:2px solid transparent;border-radius:14px;padding:8px 12px;min-width:92px;text-align:center}
+  .opp.done{opacity:.65}
+  .opp.turn{border-color:var(--gold);box-shadow:0 0 14px #f4c54288}
+  .opp .n{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+  .opp .c{color:var(--muted);font-size:.85rem}
+  .opp.last .c::after{content:" · dernier à poser";color:var(--gold)}
+  .mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:6px 12px;min-height:0}
+  .pile{position:relative;width:70px;height:98px}
+  .pile .back{position:absolute;inset:0}
+  .announce{font-size:1.35rem;font-weight:800;text-align:center}
+  .announce b{color:var(--gold)}
+  .status{color:var(--muted);text-align:center;min-height:1.3em}
+  .status.me{color:var(--gold);font-weight:700}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:0 10px}
+  .ranks{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:0 10px;max-width:520px;margin:0 auto}
+  .ranks button{padding:8px 0;width:44px;border-radius:10px;background:rgba(255,255,255,.16);color:#fff}
+  .ranks button.sel{background:var(--gold);color:#111}
+  .hand{display:flex;justify-content:center;padding:14px 8px calc(14px + env(safe-area-inset-bottom));overflow-x:auto;min-height:130px}
+  .hand .card{margin-left:-26px;flex:none;transition:transform .12s}
+  .hand .card:first-child{margin-left:0}
+  .hand .card.sel{transform:translateY(-18px);box-shadow:0 0 0 3px var(--gold),0 6px 14px #0008}
+  .card{width:62px;height:90px;background:var(--card);color:var(--ink);border-radius:8px;box-shadow:0 2px 6px #0007;position:relative;user-select:none;flex:none}
+  .card.red{color:var(--red)}
+  .card .tl{position:absolute;left:6px;top:4px;font-weight:800;line-height:1.05;font-size:1rem;text-align:center}
+  .card .mid2{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2rem;padding-top:14px}
+  .card.joker{background:linear-gradient(135deg,#fff3c4,#ffd2e0);color:#6a1b9a}
+  .card.joker .mid2{font-size:2.4rem;padding:0}
+  .card.back{background:repeating-linear-gradient(45deg,#b71c1c,#b71c1c 6px,#8e1515 6px,#8e1515 12px);border:3px solid #fff}
+  .card.big{width:110px;height:158px}
+  .card.big .tl{font-size:1.7rem;left:10px;top:8px}
+  .card.big .mid2{font-size:3.6rem;padding-top:26px}
+  .logbtn{position:fixed;left:10px;bottom:10px;z-index:30;padding:6px 12px;font-size:.85rem}
+  #logbox{position:fixed;left:10px;bottom:48px;width:min(92vw,380px);max-height:50vh;overflow:auto;background:#000d;border-radius:14px;padding:12px;z-index:30;font-size:.9rem}
+  #logbox p{margin:0 0 6px;color:#e6f2ea}
+  .overlay{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:60;text-align:center;padding:20px}
+  .overlay h2{margin:0;font-size:1.8rem}
+  .verdict.bad{color:#ff6b6b}.verdict.ok{color:#7be495}
+  @keyframes flip{from{transform:rotateY(90deg)}to{transform:rotateY(0)}}
+  .overlay .card{animation:flip .45s ease-out}
+</style>
+</head>
+<body>
+<div id="toast" class="hidden"></div>
+<div id="conn" title="Connexion"></div>
+
+<!-- ACCUEIL -->
+<div id="home" class="screen">
+  <div class="center">
+    <h1>🃏 Tu bluffes !</h1>
+    <p class="sub">Pose tes cartes. Mens bien. Finis en premier.</p>
+    <div class="panel">
+      <label for="name">Ton pseudo</label>
+      <input id="name" maxlength="18" placeholder="Ex : Amine" autocomplete="off">
+    </div>
+    <div class="panel">
+      <button id="btnCreate" style="width:100%">Créer un salon</button>
+    </div>
+    <div class="panel">
+      <label for="codeIn">Ou rejoindre avec un code</label>
+      <div class="row">
+        <input id="codeIn" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:.2em;text-align:center">
+        <button id="btnJoin" class="ghost" style="flex:0 0 auto">Rejoindre</button>
+      </div>
+    </div>
+    <details class="panel"><summary>Règles</summary>
+      <div style="font-size:.9rem;line-height:1.5;margin-top:8px;color:#e6f2ea">
+        Les 54 cartes (dont 2 jokers) sont distribuées. Le premier joueur pose <b>1 à 4 cartes face cachées</b> et annonce un chiffre (« un six »). Chacun son tour pose 1 à 4 cartes en prétendant que ce sont aussi des six, ou <b>passe</b>.<br><br>
+        À ton tour, tu peux aussi crier <b>« Tu bluffes ! »</b> sur le dernier joueur qui a posé : on retourne les cartes qu'il vient de poser. S'il a bluffé (au moins une carte fausse), il ramasse tout le tapis ; sinon c'est toi qui le ramasses. <b>Celui qui n'a pas ramassé</b> relance le tour avec le chiffre de son choix.<br><br>
+        Le chiffre ne change que quand tous les autres joueurs ont passé : le tapis <b>reste en place</b> et le dernier à avoir posé relance avec le chiffre de son choix (si c'est quelqu'un qui vient de finir ses cartes, c'est le joueur suivant qui relance).<br><br>
+        Les <b>jokers</b> ne valent jamais le chiffre annoncé : ce sont des bluffs forcés, à toi de les cacher !<br><br>
+        <b>But : poser toutes ses cartes en premier</b> (sans se faire prendre sur la dernière). Celui qui finit sort de la table (1er, 2e, 3e…) ; la partie se termine quand il ne reste qu'un joueur.
+      </div>
+    </details>
+  </div>
+</div>
+
+<!-- SALON -->
+<div id="lobby" class="screen hidden">
+  <div class="center">
+    <h1>Salon</h1>
+    <div class="panel">
+      <label>Code du salon</label>
+      <div class="code" id="lobbyCode">----</div>
+      <button id="btnCopy" class="ghost" style="width:100%;margin-top:12px">📋 Copier le lien d'invitation</button>
+    </div>
+    <div class="panel">
+      <label>Joueurs (<span id="lobbyCount">0</span>/10)</label>
+      <ul class="plist" id="lobbyList"></ul>
+      <button id="btnStart" style="width:100%">Lancer la partie</button>
+      <p id="lobbyWait" class="sub hidden" style="margin:12px 0 0">En attente de l'hôte…</p>
+    </div>
+    <button id="btnLeave" class="ghost" style="width:100%">Quitter</button>
+  </div>
+</div>
+
+<!-- JEU -->
+<div id="game" class="screen hidden">
+  <div class="top" id="opps"></div>
+  <div class="mid">
+    <div class="pile" id="pile"></div>
+    <div class="announce" id="announce"></div>
+    <div class="status" id="status"></div>
+    <div class="ranks hidden" id="ranks"></div>
+    <div class="actions">
+      <button id="btnPlay">Poser la carte</button>
+      <button id="btnSkip" class="ghost">Passer</button>
+      <button id="btnAccuse" class="danger">Tu bluffes !</button>
+    </div>
+  </div>
+  <div class="hand" id="hand"></div>
+  <button class="logbtn ghost" id="btnLog">📜 Journal</button>
+  <div id="logbox" class="hidden"></div>
+</div>
+
+<div id="overlay" class="overlay hidden"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  let ws, state = null, selected = new Set(), pickedRank = null;
+  let session = null, firstState = true, seenReveal = 0, revealUntil = 0, logOpen = false;
+  try { session = JSON.parse(localStorage.getItem('tb_session') || 'null'); } catch (e) {}
+  $('name').value = localStorage.getItem('tb_name') || '';
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  if (urlRoom) $('codeIn').value = urlRoom.toUpperCase().slice(0, 4);
+
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
+    clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('hidden'), 3200);
+  }
+  function show(screen) {
+    for (const s of ['home', 'lobby', 'game']) $(s).classList.toggle('hidden', s !== screen);
+  }
+  function send(o) {
+    if (!ws || ws.readyState !== 1) return toast('Connexion en cours… réessaie dans un instant.');
+    ws.send(JSON.stringify(o));
+  }
+  function saveSession(s) {
+    session = s;
+    if (s) localStorage.setItem('tb_session', JSON.stringify(s)); else localStorage.removeItem('tb_session');
+  }
+
+  /* ---- réseau ---- */
+  function connect() {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+    ws.onopen = () => {
+      $('conn').classList.remove('bad');
+      if (session) send({ type: 'rejoin', code: session.code, playerId: session.playerId });
+    };
+    ws.onclose = () => { $('conn').classList.add('bad'); setTimeout(connect, 1500); };
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === 'joined') { saveSession({ code: m.code, playerId: m.playerId }); }
+      else if (m.type === 'rejoin_failed') { saveSession(null); state = null; show('home'); }
+      else if (m.type === 'left') { saveSession(null); state = null; show('home'); }
+      else if (m.type === 'error') toast(m.message);
+      else if (m.type === 'state') onState(m);
+    };
+  }
+
+  function onState(s) {
+    const prevTurn = state && state.turnId;
+    state = s;
+    if (firstState) { seenReveal = s.reveal ? s.reveal.seq : 0; firstState = false; }
+    selected = new Set([...selected].filter((id) => s.hand.some((c) => c.id === id)));
+    if (!s.can.chooseRank) pickedRank = null;
+    if (s.turnId !== prevTurn && s.turnId === s.youId && navigator.vibrate) navigator.vibrate(120);
+    if (s.reveal && s.reveal.seq > seenReveal) {
+      seenReveal = s.reveal.seq;
+      revealUntil = Date.now() + 3800;
+      setTimeout(render, 3850);
+    }
+    render();
+  }
+
+  /* ---- rendu ---- */
+  function cardEl(c, cls = '') {
+    const d = document.createElement('div');
+    const red = c.suit === '♥' || c.suit === '♦';
+    d.className = 'card ' + (c.rank === 'JOKER' ? 'joker ' : '') + (red ? 'red ' : '') + cls;
+    if (c.rank === 'JOKER') {
+      const m = document.createElement('div'); m.className = 'mid2'; m.textContent = '🃏';
+      const t = document.createElement('div'); t.className = 'tl'; t.textContent = 'J';
+      d.append(t, m);
+    } else {
+      const t = document.createElement('div'); t.className = 'tl';
+      t.append(document.createTextNode(c.rank), document.createElement('br'), document.createTextNode(c.suit));
+      const m = document.createElement('div'); m.className = 'mid2'; m.textContent = c.suit;
+      d.append(t, m);
+    }
+    return d;
+  }
+  const placeLabel = (n) => (n === 1 ? '1er' : n + 'e');
+  const name = (id) => (state.players.find((p) => p.id === id) || {}).name || '?';
+
+  function render() {
+    if (!state) return show('home');
+    if (state.phase === 'lobby') return renderLobby();
+    show('game');
+    renderGame();
+  }
+
+  function renderLobby() {
+    show('lobby');
+    $('lobbyCode').textContent = state.code;
+    $('lobbyCount').textContent = state.players.length;
+    const ul = $('lobbyList'); ul.textContent = '';
+    for (const p of state.players) {
+      const li = document.createElement('li');
+      const s = document.createElement('span'); s.textContent = p.name;
+      if (p.id === state.hostId) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'hôte'; s.append(t); }
+      if (p.id === state.youId) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'toi'; s.append(t); }
+      li.append(s);
+      if (!p.connected) { li.classList.add('off'); li.append('hors ligne'); }
+      ul.append(li);
+    }
+    const host = state.hostId === state.youId;
+    $('btnStart').classList.toggle('hidden', !host);
+    $('btnStart').disabled = state.players.filter((p) => p.connected).length < 2;
+    $('lobbyWait').classList.toggle('hidden', host);
+  }
+
+  function renderGame() {
+    const me = state.players.find((p) => p.id === state.youId);
+    // adversaires dans l'ordre de jeu, à partir de celui qui suit
+    const i = state.players.indexOf(me);
+    const others = state.players.slice(i + 1).concat(state.players.slice(0, i));
+    const opps = $('opps'); opps.textContent = '';
+    for (const p of others) {
+      const d = document.createElement('div');
+      d.className = 'opp' + (p.finished ? ' done' : '') + (p.id === state.turnId ? ' turn' : '') + (p.id === state.lastPlacerId ? ' last' : '') + (p.connected ? '' : ' off');
+      const n = document.createElement('div'); n.className = 'n'; n.textContent = p.name + (p.connected ? '' : ' (hors ligne)');
+      const c = document.createElement('div'); c.className = 'c'; c.textContent = p.finished ? `🏁 ${placeLabel(p.place)}` : p.count + ' carte' + (p.count > 1 ? 's' : '');
+      d.append(n, c); opps.append(d);
+    }
+
+    // tapis
+    const pile = $('pile'); pile.textContent = '';
+    const shown = Math.min(state.pileCount, 6);
+    for (let k = 0; k < shown; k++) {
+      const b = document.createElement('div'); b.className = 'card back';
+      b.style.cssText = `position:absolute;inset:0;transform:translate(${k * 3}px,${-k * 2}px) rotate(${(k % 2 ? 1 : -1) * k * 2}deg)`;
+      pile.append(b);
+    }
+    if (!state.pileCount) { const e = document.createElement('div'); e.className = 'card back'; e.style.opacity = '.15'; e.style.position = 'absolute'; pile.append(e); }
+    const an = $('announce'); an.textContent = '';
+    if (state.currentRank) {
+      an.append('Annonce : '); const b = document.createElement('b'); b.textContent = state.rankLabel; an.append(b);
+      an.append(` · ${state.pileCount} carte${state.pileCount > 1 ? 's' : ''} sur le tapis`);
+    } else an.textContent = 'Nouveau tour';
+
+    // statut
+    const st = $('status'); st.className = 'status';
+    if (state.phase === 'playing') {
+      if (me.finished) { st.textContent = `🏁 Tu as fini ${placeLabel(me.place)} ! Tu regardes la suite…`; st.classList.add('me'); }
+      else if (state.can.chooseRank) { st.textContent = `À toi de lancer : choisis un chiffre et 1 à ${state.maxPerTurn} cartes.`; st.classList.add('me'); }
+      else if (state.turnId === state.youId) {
+        st.classList.add('me');
+        const last = state.players.find((p) => p.id === state.lastPlacerId);
+        const emptied = last && last.count === 0;
+        st.textContent = emptied
+          ? `${last.name} n'a plus de cartes : accuse-le ou il gagne !`
+          : `À toi ! Pose 1 à ${state.maxPerTurn} cartes « ${state.rankLabel} » (vraies ou fausses), passe, ou accuse ${last ? last.name : ''}.`;
+      } else if (state.turnId) st.textContent = `Au tour de ${name(state.turnId)}…`;
+    } else st.textContent = '';
+
+    // choix du chiffre
+    const rk = $('ranks'); rk.classList.toggle('hidden', !state.can.chooseRank); rk.textContent = '';
+    if (state.can.chooseRank) for (const r of RANKS) {
+      const b = document.createElement('button'); b.textContent = r;
+      if (r === pickedRank) b.className = 'sel';
+      b.onclick = () => { pickedRank = r; renderGame(); };
+      rk.append(b);
+    }
+
+    // boutons
+    $('btnPlay').disabled = !(state.can.play && selected.size > 0 && (!state.can.chooseRank || pickedRank));
+    $('btnSkip').disabled = !state.can.skip;
+    $('btnAccuse').disabled = !state.can.accuse;
+    const k = selected.size;
+    $('btnPlay').textContent = (state.can.chooseRank ? 'Poser & annoncer' : 'Poser') + (k ? ` (${k} carte${k > 1 ? 's' : ''})` : '');
+
+    // main
+    const hand = $('hand'); hand.textContent = '';
+    for (const c of state.hand) {
+      const el = cardEl(c, selected.has(c.id) ? 'sel' : '');
+      el.onclick = () => {
+        if (selected.has(c.id)) selected.delete(c.id);
+        else if (selected.size >= state.maxPerTurn) return toast(`Maximum ${state.maxPerTurn} cartes par tour.`);
+        else selected.add(c.id);
+        renderGame();
+      };
+      hand.append(el);
+    }
+    if (!state.hand.length && state.phase === 'playing') hand.textContent = 'Plus de cartes ! 🎉';
+
+    // journal
+    const lb = $('logbox'); lb.classList.toggle('hidden', !logOpen); lb.textContent = '';
+    for (const l of state.log.slice().reverse()) { const p = document.createElement('p'); p.textContent = l; lb.append(p); }
+
+    renderOverlay();
+  }
+
+  function renderOverlay() {
+    const ov = $('overlay'); ov.textContent = '';
+    const r = state.reveal;
+    if (r && Date.now() < revealUntil) {
+      ov.classList.remove('hidden');
+      const h = document.createElement('h2');
+      h.textContent = `${name(r.accuserId)} accuse ${name(r.accusedId)} !`;
+      const sub = document.createElement('div');
+      sub.textContent = `Annonce : « ${state.labels[r.claimed]} » · ${r.cards.length} carte${r.cards.length > 1 ? 's' : ''} retournée${r.cards.length > 1 ? 's' : ''}`;
+      const card = document.createElement('div');
+      card.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center';
+      r.cards.forEach((c) => card.append(cardEl(c, 'big')));
+      const v = document.createElement('h2');
+      v.className = 'verdict ' + (r.bluff ? 'bad' : 'ok');
+      v.textContent = r.bluff ? `Bluff ! ${name(r.loserId)} ramasse ${r.count} cartes` : `Pas de bluff ! ${name(r.loserId)} ramasse ${r.count} cartes`;
+      ov.append(h, sub, card, v);
+      return;
+    }
+    if (state.phase === 'ended') {
+      ov.classList.remove('hidden');
+      const h = document.createElement('h2');
+      h.textContent = state.winnerId === state.youId ? '🏆 Tu as gagné !' : `🏆 ${name(state.winnerId)} a gagné !`;
+      ov.append(h);
+      const ol = document.createElement('div');
+      state.ranking.forEach((id, i) => {
+        const line = document.createElement('div');
+        line.textContent = (i === 0 ? '🥇 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : '') + `${placeLabel(i + 1)} — ${name(id)}` + (state.ranking.length > 1 && i === state.ranking.length - 1 ? ' (dernier)' : '');
+        ol.append(line);
+      });
+      ov.append(ol);
+      if (state.hostId === state.youId) {
+        const b = document.createElement('button'); b.textContent = 'Rejouer'; b.onclick = () => send({ type: 'again' }); ov.append(b);
+      } else { const p = document.createElement('div'); p.textContent = 'En attente de l\'hôte pour rejouer…'; ov.append(p); }
+      const q = document.createElement('button'); q.className = 'ghost'; q.textContent = 'Quitter';
+      q.onclick = () => send({ type: 'leave' }); ov.append(q);
+      return;
+    }
+    ov.classList.add('hidden');
+  }
+
+  /* ---- actions ---- */
+  $('btnCreate').onclick = () => {
+    const n = $('name').value.trim() || 'Joueur'; localStorage.setItem('tb_name', n);
+    firstState = true; send({ type: 'create', name: n });
+  };
+  $('btnJoin').onclick = () => {
+    const n = $('name').value.trim() || 'Joueur'; localStorage.setItem('tb_name', n);
+    const code = $('codeIn').value.trim().toUpperCase();
+    if (code.length !== 4) return toast('Entre le code à 4 caractères.');
+    firstState = true; send({ type: 'join', name: n, code });
+  };
+  $('btnStart').onclick = () => send({ type: 'start' });
+  $('btnLeave').onclick = () => send({ type: 'leave' });
+  $('btnCopy').onclick = async () => {
+    const link = `${location.origin}/?room=${state.code}`;
+    try { await navigator.clipboard.writeText(link); toast('Lien copié !'); } catch (e) { toast(link); }
+  };
+  $('btnPlay').onclick = () => {
+    send({ type: 'play', cardIds: [...selected], rank: pickedRank });
+    selected = new Set();
+  };
+  $('btnSkip').onclick = () => send({ type: 'skip' });
+  $('btnAccuse').onclick = () => send({ type: 'accuse' });
+  $('btnLog').onclick = () => { logOpen = !logOpen; if (state) renderGame(); };
+
+  connect();
+})();
+</script>
+</body>
+</html>
