@@ -18,8 +18,8 @@ const ORDER = {};
 RANKS.forEach((r, i) => (ORDER[r] = i));
 ORDER.JOKER = 99;
 const LABELS = {
-  A: 'un as', 2: 'un deux', 3: 'un trois', 4: 'un quatre', 5: 'un cinq', 6: 'un six',
-  7: 'un sept', 8: 'un huit', 9: 'un neuf', 10: 'un dix', J: 'un valet', Q: 'une dame', K: 'un roi',
+  A: 'as', 2: 'deux', 3: 'trois', 4: 'quatre', 5: 'cinq', 6: 'six',
+  7: 'sept', 8: 'huit', 9: 'neuf', 10: 'dix', J: 'valet', Q: 'dame', K: 'roi',
 };
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 10;
