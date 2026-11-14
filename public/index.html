@@ -355,10 +355,10 @@
       const h = document.createElement('h2');
       h.textContent = `${name(r.accuserId)} accuse ${name(r.accusedId)} !`;
       const sub = document.createElement('div');
-      sub.textContent = `Annonce : « ${state.labels[r.claimed]} » · ${r.cards.length} carte${r.cards.length > 1 ? 's' : ''} retournée${r.cards.length > 1 ? 's' : ''}`;
+      sub.textContent = `Annonce : « ${state.labels[r.claimed]} » · ${r.played} carte${r.played > 1 ? 's' : ''} posée${r.played > 1 ? 's' : ''}`;
       const card = document.createElement('div');
       card.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center';
-      r.cards.forEach((c) => card.append(cardEl(c, 'big')));
+      for (let k = 0; k < r.played; k++) card.append(Object.assign(document.createElement('div'), { className: 'card back big' }));
       const v = document.createElement('h2');
       v.className = 'verdict ' + (r.bluff ? 'bad' : 'ok');
       v.textContent = r.bluff ? `Bluff ! ${name(r.loserId)} ramasse ${r.count} cartes` : `Pas de bluff ! ${name(r.loserId)} ramasse ${r.count} cartes`;

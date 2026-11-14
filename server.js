@@ -215,16 +215,15 @@ function act(room, p, msg) {
     const loser = bluff ? last : p;      // celui qui ramasse
     const starter = bluff ? p : last;    // celui qui NE ramasse PAS relance
     const n = room.pile.length;
-    const shownCards = cards.map(cardLabel).join(', ');
     room.seq++;
     room.reveal = {
-      seq: room.seq, cards, claimed: room.currentRank, bluff,
+      seq: room.seq, played: cards.length, claimed: room.currentRank, bluff,
       accuserId: p.id, accusedId: last.id, loserId: loser.id, count: n,
     };
     addLog(room, `${p.name} accuse ${last.name} : « Tu bluffes ! »`);
     addLog(room, bluff
-      ? `Cartes retournées : ${shownCards} → c'était un bluff ! ${loser.name} ramasse les ${n} cartes.`
-      : `Cartes retournées : ${shownCards} → pas de bluff ! ${loser.name} ramasse les ${n} cartes.`);
+      ? `C'était un bluff ! ${loser.name} ramasse les ${n} cartes.`
+      : `Pas de bluff ! ${loser.name} ramasse les ${n} cartes.`);
     loser.hand.push(...room.pile.map((e) => e.card));
     room.pile = [];
     if (!bluff && last.hand.length === 0) return finishPlayer(room, last);
