@@ -66,7 +66,7 @@ const idxOf = (room, id) => room.players.findIndex((p) => p.id === id);
 function createRoom() {
   const room = {
     code: newCode(), players: [], hostId: null, phase: 'lobby',
-    turnIdx: 0, currentRank: null, pile: [], lastPlay: null, lastPlacerId: null, skips: 0, discarded: 0,
+    turnIdx: 0, currentRank: null, pile: [], lastPlay: null, lastPlacerId: null, passed: [], roundCount: 0, discarded: 0,
     log: [], seq: 0, reveal: null, winnerId: null, ranking: [], touched: Date.now(),
   };
   rooms.set(room.code, room);
@@ -102,15 +102,16 @@ function startGame(room) {
   if (room.players.length < MIN_PLAYERS) fail('Il faut au moins 2 joueurs connectés.');
   if (!room.players.some((p) => p.id === room.hostId)) room.hostId = room.players[0].id;
   const deck = shuffle(makeDeck());
-  room.players.forEach((p) => { p.hand = []; p.finished = false; });
+  room.players.forEach((p) => { p.hand = []; p.finished = false; p.left = false; });
   room.ranking = [];
   deck.forEach((c, i) => room.players[i % room.players.length].hand.push(c));
   room.phase = 'playing';
   room.currentRank = null;
   room.pile = [];
   room.lastPlay = null;
+  room.roundCount = 0;
   room.lastPlacerId = null;
-  room.skips = 0;
+  room.passed = [];
   room.discarded = 0;
   room.winnerId = null;
   room.reveal = null;
@@ -131,8 +132,9 @@ const activeCount = (room) => room.players.filter((p) => !p.finished).length;
 function newRoundFor(room, p) {
   // le tapis (room.pile) n'est PAS vidé ici : il ne l'est que lorsqu'un joueur le ramasse
   room.currentRank = null;
-  room.skips = 0;
+  room.passed = [];
   room.lastPlay = null;
+  room.roundCount = 0;
   room.lastPlacerId = null;
   room.turnIdx = idxOf(room, p.id);
 }
@@ -163,6 +165,46 @@ function endRound(room) {
   addLog(room, `${last.name} relance un nouveau tour avec le chiffre de son choix.`);
 }
 
+const allPassed = (room) => !!room.lastPlacerId
+  && room.players.every((q) => q.finished || q.id === room.lastPlacerId || room.passed.includes(q.id));
+
+/** Un joueur quitte en pleine partie : ses cartes sont réparties entre les joueurs restants. */
+function leaveMidGame(room, p) {
+  const idx = idxOf(room, p.id);
+  const wasFinished = p.finished;
+  const wasCurrent = room.turnIdx === idx;
+  const wasLastPlacer = room.lastPlacerId === p.id;
+  p.left = true;
+  p.finished = true; // sort de la rotation des tours
+  addLog(room, `🚪 ${p.name} a quitté la partie.`);
+  if (wasFinished) return;
+
+  const rest = room.players.filter((q) => !q.finished);
+  if (p.hand.length && rest.length) {
+    p.hand.forEach((c, i) => rest[i % rest.length].hand.push(c));
+    addLog(room, `Ses ${p.hand.length} cartes sont réparties entre les autres joueurs.`);
+  }
+  p.hand = [];
+
+  if (rest.length <= 1) { // plus assez de joueurs : fin de partie
+    if (rest.length === 1) room.ranking.push(rest[0].id);
+    room.phase = 'ended';
+    room.winnerId = room.ranking[0] || null;
+    return;
+  }
+  if (wasLastPlacer) {
+    // celui à accuser est parti : le joueur suivant relance, le tapis reste en place
+    const next = room.players[nextActiveIdx(room, idx)];
+    newRoundFor(room, next);
+    addLog(room, `${next.name} relance un nouveau tour avec le chiffre de son choix.`);
+  } else if (wasCurrent) {
+    room.turnIdx = nextActiveIdx(room, idx);
+    if (allPassed(room)) endRound(room);
+  } else if (allPassed(room)) {
+    endRound(room);
+  }
+}
+
 function act(room, p, msg) {
   if (room.phase !== 'playing') fail('La partie n\'est pas en cours.');
   const cur = room.players[room.turnIdx];
@@ -186,9 +228,10 @@ function act(room, p, msg) {
     p.hand = p.hand.filter((c) => !ids.includes(c.id));
     room.currentRank = rank;
     cards.forEach((card) => room.pile.push({ playerId: p.id, card }));
+    room.roundCount += cards.length;
     room.lastPlay = { playerId: p.id, cards };
     room.lastPlacerId = p.id;
-    room.skips = 0;
+    room.passed = [];
     const n = cards.length;
     const what = `${n} carte${n > 1 ? 's' : ''}`;
     addLog(room, starting
@@ -201,9 +244,9 @@ function act(room, p, msg) {
 
   if (msg.type === 'skip') {
     if (room.currentRank === null || !room.pile.length) fail('Tu dois poser une carte pour lancer le tour.');
-    room.skips++;
+    room.passed.push(p.id);
     addLog(room, `${p.name} passe.`);
-    if (room.skips >= activeCount(room) - 1) endRound(room);
+    if (allPassed(room)) endRound(room);
     else room.turnIdx = nextActiveIdx(room, room.turnIdx);
     return;
   }
@@ -247,15 +290,17 @@ function viewFor(room, p) {
     phase: room.phase,
     hostId: room.hostId,
     youId: p.id,
-    players: room.players.map((q) => ({ id: q.id, name: q.name, count: q.hand.length, connected: !!q.ws, finished: !!q.finished, place: room.ranking.indexOf(q.id) + 1 || null })),
+    players: room.players.map((q) => ({ id: q.id, name: q.name, count: q.hand.length, connected: !!q.ws, left: !!q.left, finished: !!q.finished, place: room.ranking.indexOf(q.id) + 1 || null })),
     ranking: room.ranking,
     turnId: cur ? cur.id : null,
     currentRank: room.currentRank,
     rankLabel: room.currentRank ? LABELS[room.currentRank] : null,
     pileCount: room.pile.length,
+    roundCount: room.roundCount,
+    lastCount: room.lastPlay ? room.lastPlay.cards.length : 0,
     discarded: room.discarded,
     lastPlacerId: room.lastPlacerId,
-    skips: room.skips,
+    skips: room.passed.length,
     hand: p.hand.slice().sort((a, b) => ORDER[a.rank] - ORDER[b.rank] || a.suit.localeCompare(b.suit)),
     can: {
       play: myTurn && p.hand.length > 0 && !lastEmpty,
@@ -329,10 +374,20 @@ function handle(ws, msg) {
       act(room, p, msg);
       break;
     case 'leave':
-      if (room.phase === 'playing') fail('Tu ne peux pas quitter en pleine partie.');
       ws.ctx = null;
       p.ws = null;
-      removePlayer(room, p.id);
+      clearTimeout(p.dropTimer);
+      if (room.phase === 'lobby') removePlayer(room, p.id);
+      else {
+        if (room.phase === 'playing') leaveMidGame(room, p);
+        else p.left = true;
+        if (room.hostId === p.id) {
+          const h = room.players.find((q) => q.ws && !q.left);
+          if (h) room.hostId = h.id;
+        }
+        if (room.players.every((q) => q.left)) rooms.delete(room.code);
+        else broadcast(room);
+      }
       return send(ws, { type: 'left' });
     default:
       return;
