@@ -18,14 +18,17 @@ const ORDER = {};
 RANKS.forEach((r, i) => (ORDER[r] = i));
 ORDER.JOKER = 99;
 const LABELS = {
-  A: 'as', 2: 'deux', 3: 'trois', 4: 'quatre', 5: 'cinq', 6: 'six',
-  7: 'sept', 8: 'huit', 9: 'neuf', 10: 'dix', J: 'valet', Q: 'dame', K: 'roi',
+  A: 'un as', 2: 'un deux', 3: 'un trois', 4: 'un quatre', 5: 'un cinq', 6: 'un six',
+  7: 'un sept', 8: 'un huit', 9: 'un neuf', 10: 'un dix', J: 'un valet', Q: 'une dame', K: 'un roi',
 };
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 10;
 const MAX_PER_TURN = 4;
 // false : la partie continue après la 1re victoire (classement) ; true : elle s'arrête au 1er qui finit
 const STOP_AT_FIRST_WINNER = false;
+const CHAT_MAX = 100;                 // longueur max d'un message (au-delà : coupé avec « … »)
+const BOT_SPEED = Number(process.env.BOT_SPEED) || 1; // >1 = bots plus rapides (utile pour les tests)
+const BOT_NAMES = ['Robin', 'Zoé', 'Karim', 'Léa', 'Max', 'Nina', 'Yanis', 'Inès', 'Hugo', 'Sara'];
 
 const rooms = new Map();
 
@@ -67,10 +70,24 @@ function createRoom() {
   const room = {
     code: newCode(), players: [], hostId: null, phase: 'lobby',
     turnIdx: 0, currentRank: null, pile: [], lastPlay: null, lastPlacerId: null, passed: [], roundCount: 0, discarded: 0,
-    log: [], seq: 0, reveal: null, winnerId: null, ranking: [], touched: Date.now(),
+    log: [], seq: 0, reveal: null, revealAt: 0, winnerId: null, ranking: [], touched: Date.now(),
+    chat: [], chatSeq: 0, ver: 0, botTimer: null,
   };
   rooms.set(room.code, room);
   return room;
+}
+function deleteRoom(room) {
+  clearTimeout(room.botTimer);
+  room.players.forEach((p) => clearTimeout(p.dropTimer));
+  rooms.delete(room.code);
+}
+function addBot(room) {
+  const used = new Set(room.players.map((p) => p.name));
+  let name = BOT_NAMES.find((n) => !used.has(`🤖 ${n}`));
+  name = name ? `🤖 ${name}` : `🤖 Bot ${room.players.length + 1}`;
+  const p = { id: uid(), name, hand: [], ws: null, dropTimer: null, bot: true };
+  room.players.push(p);
+  return p;
 }
 function addPlayer(room, name) {
   const p = { id: uid(), name: cleanName(name), hand: [], ws: null, dropTimer: null };
@@ -90,17 +107,17 @@ function removePlayer(room, id) {
   if (i < 0) return;
   clearTimeout(room.players[i].dropTimer);
   room.players.splice(i, 1);
-  if (!room.players.length) { rooms.delete(room.code); return; }
-  if (room.hostId === id) room.hostId = (room.players.find((p) => p.ws) || room.players[0]).id;
+  if (!room.players.some((p) => !p.bot)) { deleteRoom(room); return; }
+  if (room.hostId === id) room.hostId = (room.players.find((p) => !p.bot && p.ws) || room.players.find((p) => !p.bot)).id;
   broadcast(room);
 }
 const addLog = (room, t) => { room.log.push(t); if (room.log.length > 60) room.log.shift(); };
 
 /* ---------- logique de jeu ---------- */
 function startGame(room) {
-  room.players = room.players.filter((p) => p.ws);
-  if (room.players.length < MIN_PLAYERS) fail('Il faut au moins 2 joueurs connectés.');
-  if (!room.players.some((p) => p.id === room.hostId)) room.hostId = room.players[0].id;
+  room.players = room.players.filter((p) => p.ws || p.bot);
+  if (room.players.length < MIN_PLAYERS) fail('Il faut au moins 2 joueurs (ajoute un bot si tu es seul).');
+  if (!room.players.some((p) => p.id === room.hostId)) room.hostId = (room.players.find((p) => !p.bot) || room.players[0]).id;
   const deck = shuffle(makeDeck());
   room.players.forEach((p) => { p.hand = []; p.finished = false; p.left = false; });
   room.ranking = [];
@@ -169,14 +186,14 @@ const allPassed = (room) => !!room.lastPlacerId
   && room.players.every((q) => q.finished || q.id === room.lastPlacerId || room.passed.includes(q.id));
 
 /** Un joueur quitte en pleine partie : ses cartes sont réparties entre les joueurs restants. */
-function leaveMidGame(room, p) {
+function leaveMidGame(room, p, kicked) {
   const idx = idxOf(room, p.id);
   const wasFinished = p.finished;
   const wasCurrent = room.turnIdx === idx;
   const wasLastPlacer = room.lastPlacerId === p.id;
   p.left = true;
   p.finished = true; // sort de la rotation des tours
-  addLog(room, `🚪 ${p.name} a quitté la partie.`);
+  addLog(room, kicked ? `🥾 ${p.name} a été expulsé par l'hôte.` : `🚪 ${p.name} a quitté la partie.`);
   if (wasFinished) return;
 
   const rest = room.players.filter((q) => !q.finished);
@@ -263,14 +280,15 @@ function act(room, p, msg) {
     const starter = bluff ? p : last;    // celui qui NE ramasse PAS relance
     const n = room.pile.length;
     room.seq++;
+    room.revealAt = Date.now();
     room.reveal = {
       seq: room.seq, played: cards.length, claimed: room.currentRank, bluff,
       accuserId: p.id, accusedId: last.id, loserId: loser.id, count: n,
     };
     addLog(room, `${p.name} accuse ${last.name} : « Tu bluffes ! »`);
     addLog(room, bluff
-      ? `C'était un bluff ! ${loser.name} ramasse les ${n} cartes.`
-      : `Pas de bluff ! ${loser.name} ramasse les ${n} cartes.`);
+      ? `C'était un bluff ! ${loser.name} ramasse ${n > 1 ? `les ${n} cartes` : 'la carte'}.`
+      : `Pas de bluff ! ${loser.name} ramasse ${n > 1 ? `les ${n} cartes` : 'la carte'}.`);
     loser.hand.push(...room.pile.map((e) => e.card));
     room.pile = [];
     if (!bluff && last.hand.length === 0) return finishPlayer(room, last);
@@ -294,7 +312,7 @@ function viewFor(room, p) {
     phase: room.phase,
     hostId: room.hostId,
     youId: p.id,
-    players: room.players.map((q) => ({ id: q.id, name: q.name, count: q.hand.length, connected: !!q.ws, left: !!q.left, finished: !!q.finished, place: room.ranking.indexOf(q.id) + 1 || null })),
+    players: room.players.map((q) => ({ id: q.id, name: q.name, count: q.hand.length, connected: !!q.ws || !!q.bot, bot: !!q.bot, left: !!q.left, finished: !!q.finished, place: room.ranking.indexOf(q.id) + 1 || null })),
     ranking: room.ranking,
     turnId: cur ? cur.id : null,
     currentRank: room.currentRank,
@@ -323,6 +341,132 @@ function send(ws, obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o
 function broadcast(room) {
   room.touched = Date.now();
   for (const p of room.players) send(p.ws, viewFor(room, p));
+  scheduleBots(room);
+}
+
+/* ---------- chat ---------- */
+function say(room, p, raw, isBot) {
+  let text = String(raw == null ? '' : raw).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!text) return;
+  if (!isBot) {
+    const now = Date.now();
+    p.chatTimes = (p.chatTimes || []).filter((t) => now - t < 6000);
+    if (p.chatTimes.length >= 5) fail('Doucement ! Trop de messages d\'un coup.');
+    p.chatTimes.push(now);
+  }
+  if (text.length > CHAT_MAX) text = text.slice(0, CHAT_MAX - 1).trimEnd() + '…';
+  const m = { id: ++room.chatSeq, pid: p.id, name: p.name, text };
+  room.chat.push(m);
+  if (room.chat.length > 60) room.chat.shift();
+  room.touched = Date.now();
+  for (const q of room.players) send(q.ws, { type: 'chat', m });
+}
+
+/* ---------- bots ---------- */
+const rnd = (n) => crypto.randomInt(n);
+const chance = (p) => Math.random() < p;
+const SAY = {
+  accuse: ['Tu bluffes !', 'Je ne te crois pas 😏', 'Menteur !', 'Bluff !', 'Hmm… non.'],
+  caught: ['Aïe 😅', 'Bien joué…', 'Raté !'],
+  win: ['Facile 😎', 'GG !', 'Merci la compagnie !'],
+};
+const pickOne = (a) => a[rnd(a.length)];
+
+function accuseProb(room, b) {
+  const last = byId(room, room.lastPlacerId);
+  const rank = room.currentRank;
+  const mine = b.hand.filter((c) => c.rank === rank).length;
+  const n = room.lastPlay.cards.length;
+  if (last.hand.length === 0) return 0.92;           // il va gagner : il faut l'arrêter
+  if (n + mine > 4) return 0.93;                     // impossible : au moins une carte fausse
+  let pr = 0.05 + 0.06 * (n - 1) + 0.05 * mine;
+  if (room.roundCount + mine > 4) pr += 0.25;
+  if (last.hand.length <= 2) pr += 0.12;
+  return Math.min(pr, 0.7);
+}
+function botDecide(room, b) {
+  const rank = room.currentRank;
+  const last = room.lastPlacerId ? byId(room, room.lastPlacerId) : null;
+  const canAccuse = !!(room.lastPlay && last && last.id !== b.id);
+  const canSkip = rank !== null && room.pile.length > 0;
+  const hand = b.hand;
+  if (canAccuse && last.hand.length === 0) return chance(0.9) ? { type: 'accuse' } : { type: 'skip' };
+  if (canAccuse && chance(accuseProb(room, b))) return { type: 'accuse' };
+  if (!hand.length) return canSkip ? { type: 'skip' } : null;
+  const jokers = hand.filter((c) => c.rank === 'JOKER');
+  const normal = hand.filter((c) => c.rank !== 'JOKER');
+  const pick = (arr, n) => shuffle(arr.slice()).slice(0, n);
+  const play = (cards, r) => ({ type: 'play', cardIds: cards.map((c) => c.id), rank: r });
+
+  if (rank === null) { // à moi de lancer
+    if (!normal.length) return play(jokers.slice(0, 1 + rnd(Math.min(2, jokers.length))), RANKS[rnd(13)]);
+    const groups = {};
+    normal.forEach((c) => { (groups[c.rank] = groups[c.rank] || []).push(c); });
+    const best = Math.max(...Object.values(groups).map((g) => g.length));
+    const rk = pickOne(Object.keys(groups).filter((r) => groups[r].length === best));
+    const g = groups[rk];
+    const take = pick(g, Math.min(MAX_PER_TURN, 1 + rnd(g.length)));
+    if (jokers.length && take.length < MAX_PER_TURN && chance(0.7)) take.push(jokers[0]);
+    return play(take, rk);
+  }
+  const real = normal.filter((c) => c.rank === rank);
+  if (real.length) {
+    const k = real.length >= 3 && chance(0.6) ? real.length : 1 + rnd(real.length);
+    const take = pick(real, Math.min(MAX_PER_TURN, k));
+    if (jokers.length && take.length < MAX_PER_TURN && chance(0.5)) take.push(jokers[0]);
+    return play(take, rank);
+  }
+  let bluffP = hand.length <= 3 ? 0.85 : 0.4;
+  if (jokers.length) bluffP = 0.85;
+  if (room.roundCount >= 6) bluffP -= 0.2;
+  if (!canSkip) bluffP = 1;
+  if (chance(bluffP)) {
+    const n = Math.min(MAX_PER_TURN, hand.length >= 6 && chance(0.25) ? 2 : 1);
+    let take = jokers.slice(0, n);
+    if (take.length < n) take = take.concat(pick(normal, n - take.length));
+    return play(take, rank);
+  }
+  return { type: 'skip' };
+}
+function botAct(room, b, msg) {
+  act(room, b, msg);
+  if (msg.type === 'accuse' && chance(0.35)) say(room, b, pickOne(SAY.accuse), true);
+  if (room.phase === 'ended' && room.winnerId === b.id && chance(0.6)) say(room, b, pickOne(SAY.win), true);
+  broadcast(room);
+}
+function botTurn(room, b) {
+  if (room.phase !== 'playing' || room.players[room.turnIdx] !== b || b.finished) return;
+  try { botAct(room, b, botDecide(room, b) || { type: 'skip' }); }
+  catch (e) {
+    if (!(e instanceof GameError)) console.error(e);
+    try { botAct(room, b, { type: 'skip' }); } catch (e2) { broadcast(room); }
+  }
+}
+function botAccuse(room, b) {
+  if (room.phase !== 'playing' || b.finished || !room.lastPlay || room.lastPlacerId === b.id) return;
+  try { botAct(room, b, { type: 'accuse' }); } catch (e) { if (!(e instanceof GameError)) console.error(e); broadcast(room); }
+}
+function scheduleBots(room) {
+  clearTimeout(room.botTimer);
+  room.botTimer = null;
+  const ver = ++room.ver;
+  if (room.phase !== 'playing') return;
+  if (!room.players.some((p) => !p.bot && p.ws)) return;   // plus personne ne regarde : on met en pause
+  const cur = room.players[room.turnIdx];
+  const events = [];
+  if (cur && cur.bot && !cur.finished) events.push({ d: 1100 + rnd(1500), fn: () => botTurn(room, cur) });
+  if (room.lastPlay) {
+    for (const b of room.players) {
+      if (!b.bot || b.finished || b === cur || b.id === room.lastPlacerId) continue;
+      if (chance(accuseProb(room, b))) events.push({ d: 1600 + rnd(2600), fn: () => botAccuse(room, b) });
+    }
+  }
+  if (!events.length) return;
+  events.sort((a, b) => a.d - b.d);
+  const ev = events[0];
+  // on laisse le temps de voir le verdict d'une accusation avant que les bots rejouent
+  const wait = Math.max(0, room.revealAt + 4000 - Date.now());
+  room.botTimer = setTimeout(() => { if (room.ver === ver) ev.fn(); }, (ev.d + wait) / BOT_SPEED);
 }
 
 /* ---------- messages ---------- */
@@ -335,6 +479,7 @@ function handle(ws, msg) {
     const p = addPlayer(room, msg.name);
     attach(ws, room, p);
     send(ws, { type: 'joined', playerId: p.id, code: room.code, name: p.name });
+    send(ws, { type: 'chat_history', msgs: room.chat });
     return broadcast(room);
   }
   if (msg.type === 'join') {
@@ -346,14 +491,16 @@ function handle(ws, msg) {
     const p = addPlayer(room, msg.name);
     attach(ws, room, p);
     send(ws, { type: 'joined', playerId: p.id, code: room.code, name: p.name });
+    send(ws, { type: 'chat_history', msgs: room.chat });
     return broadcast(room);
   }
   if (msg.type === 'rejoin') {
     const room = rooms.get(String(msg.code || '').toUpperCase());
     const p = room && room.players.find((q) => q.id === msg.playerId);
-    if (!p) return send(ws, { type: 'rejoin_failed' });
+    if (!p || p.left || p.bot) return send(ws, { type: 'rejoin_failed' });
     attach(ws, room, p);
     send(ws, { type: 'joined', playerId: p.id, code: room.code, name: p.name });
+    send(ws, { type: 'chat_history', msgs: room.chat });
     return broadcast(room);
   }
 
@@ -377,6 +524,28 @@ function handle(ws, msg) {
     case 'play': case 'skip': case 'accuse':
       act(room, p, msg);
       break;
+    case 'chat':
+      say(room, p, msg.text, false);
+      return;
+    case 'add_bot':
+      if (room.hostId !== p.id) fail('Seul l\'hôte peut ajouter un bot.');
+      if (room.phase !== 'lobby') fail('Les bots s\'ajoutent avant le début de la partie.');
+      if (room.players.length >= MAX_PLAYERS) fail('Le salon est plein.');
+      addBot(room);
+      break;
+    case 'kick': {
+      if (room.hostId !== p.id) fail('Seul l\'hôte peut expulser un joueur.');
+      const t = byId(room, msg.playerId);
+      if (!t) fail('Joueur introuvable.');
+      if (t.id === p.id) fail('Tu ne peux pas t\'expulser toi-même (utilise Quitter).');
+      if (t.left) fail('Ce joueur est déjà parti.');
+      if (t.ws) { send(t.ws, { type: 'kicked' }); t.ws.ctx = null; t.ws = null; }
+      clearTimeout(t.dropTimer);
+      if (room.phase === 'lobby') return removePlayer(room, t.id);
+      if (room.phase === 'playing') leaveMidGame(room, t, true);
+      else t.left = true;
+      break;
+    }
     case 'leave':
       ws.ctx = null;
       p.ws = null;
@@ -389,7 +558,7 @@ function handle(ws, msg) {
           const h = room.players.find((q) => q.ws && !q.left);
           if (h) room.hostId = h.id;
         }
-        if (room.players.every((q) => q.left)) rooms.delete(room.code);
+        if (room.players.every((q) => q.left || q.bot)) deleteRoom(room);
         else broadcast(room);
       }
       return send(ws, { type: 'left' });
@@ -463,7 +632,7 @@ setInterval(() => {
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms) {
-    if (now - room.touched > 3 * 3600 * 1000 && !room.players.some((p) => p.ws)) rooms.delete(code);
+    if (now - room.touched > 3 * 3600 * 1000 && !room.players.some((p) => p.ws)) deleteRoom(room);
   }
 }, 10 * 60 * 1000);
 
