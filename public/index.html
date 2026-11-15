@@ -88,7 +88,6 @@
   .bar .small{padding:6px 12px;font-size:.85rem}
   .bar span{color:var(--muted);font-size:.85rem}
   @media (max-height:700px),(max-width:420px){.card{width:56px;height:82px}.card .tl{font-size:.9rem}.card .mid2{font-size:1.7rem;padding-top:12px}.pile{width:56px;height:80px}}
-  .logbtn{position:fixed;left:10px;bottom:10px;z-index:30;padding:6px 12px;font-size:.85rem}
   #logbox{position:fixed;left:10px;top:50px;width:min(92vw,380px);max-height:50vh;overflow:auto;background:#000d;border-radius:14px;padding:12px;z-index:30;font-size:.9rem}
   #logbox p{margin:0 0 6px;color:#e6f2ea}
   .overlay{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:60;text-align:center;padding:20px}
@@ -96,6 +95,71 @@
   .verdict.bad{color:#ff6b6b}.verdict.ok{color:#7be495}
   @keyframes flip{from{transform:rotateY(90deg)}to{transform:rotateY(0)}}
   .overlay .card{animation:flip .45s ease-out}
+
+  /* ---- table avec joueurs autour ---- */
+  .table{position:relative;width:100%;max-width:780px;margin:4px auto 0;height:clamp(280px,44vh,480px);height:clamp(280px,44dvh,480px);flex:none}
+  .felt{position:absolute;left:9%;right:9%;top:19%;bottom:14%;border-radius:50%;background:radial-gradient(ellipse at center,#14663f,#0d4a2e);box-shadow:inset 0 0 0 4px #0a3a24,inset 0 0 40px #0006,0 0 0 6px #5b3a1e44}
+  .center{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);display:flex;flex-direction:column;align-items:center;gap:8px;z-index:1;width:46%}
+  .center .announce{font-size:1.05rem}
+  .seat{position:absolute;transform:translate(-50%,-50%);width:78px;text-align:center;z-index:2}
+  .seat .av{width:38px;height:38px;border-radius:50%;margin:0 auto 2px;display:grid;place-items:center;font-weight:800;color:#111;border:3px solid transparent;font-size:1rem}
+  .seat.turn .av{border-color:var(--gold);box-shadow:0 0 14px #f4c542cc;animation:pulse 1.2s ease-in-out infinite}
+  .seat .nm{font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seat .ct{font-size:.74rem;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:4px}
+  .seat .mc{display:inline-block;width:9px;height:13px;border-radius:2px;background:#b71c1c;border:1px solid #fff}
+  .seat .tg{font-size:.62rem;color:var(--gold);min-height:.8em;line-height:1}
+  .seat.done{opacity:.55}
+  .seat.off .av{filter:grayscale(1)}
+  .seat.me .nm{color:var(--gold)}
+  .seat .say{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;width:max-content;max-width:132px;background:#fff;color:#111;border-radius:12px;padding:4px 9px;font-size:.74rem;line-height:1.25;font-weight:600;display:none;z-index:6;box-shadow:0 3px 10px #0006;word-break:break-word;text-align:left}
+  .seat .say.show{display:block}
+  .seat .say span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+  .seat.edgeL .say{left:-6px;transform:none}
+  .seat.edgeR .say{left:auto;right:-6px;transform:none}
+  .seat.me .say{top:auto;bottom:100%;margin:0 0 4px}
+  .seat .kick{position:absolute;top:2px;right:0;width:20px;height:20px;padding:0;border-radius:50%;font-size:.68rem;line-height:1;background:#000a;color:#fff;border:1px solid #fff4}
+  .seat.tight{width:58px}.seat.tight .av{width:30px;height:30px;font-size:.8rem}.seat.tight .nm{font-size:.66rem}.seat.tight .ct{font-size:.66rem}.seat.tight .say{max-width:104px;font-size:.68rem}
+  @keyframes pulse{50%{box-shadow:0 0 22px #f4c542}}
+  @keyframes bump{0%{transform:translate(-50%,-50%) scale(1)}35%{transform:translate(-50%,-50%) scale(1.28)}100%{transform:translate(-50%,-50%) scale(1)}}
+  .seat.bump{animation:bump .6s ease-out}
+  .seat.bump .av{box-shadow:0 0 0 4px #f4c54299}
+  .fly{position:fixed;z-index:70;pointer-events:none;transition:transform .75s cubic-bezier(.45,.05,.25,1),opacity .75s;margin:0}
+  .belowtable{display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px 12px 10px}
+
+  /* ---- lobby : boutons hôte ---- */
+  .plist li{align-items:center;gap:8px}
+  .plist li .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .plist .kickbtn{padding:4px 10px;font-size:.8rem;background:rgba(229,57,53,.9);color:#fff}
+
+  /* ---- chat ---- */
+  #chat,#chatBubble{display:none}
+  #chat{position:fixed;z-index:45;flex-direction:column;background:rgba(8,28,18,.94);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12)}
+  .chat-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;font-weight:800;border-bottom:1px solid rgba(255,255,255,.1)}
+  .chat-head .small{padding:3px 10px;font-size:.8rem}
+  #chatMsgs{flex:1;min-height:0;overflow-y:auto;padding:8px 12px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  .msg{font-size:.88rem;line-height:1.35;margin:0 0 5px;word-break:break-word;overflow-wrap:anywhere}
+  .msg b{font-weight:800}
+  .msg.mine b::after{content:" (toi)";font-weight:400;opacity:.6;font-size:.75rem}
+  .chat-empty{color:var(--muted);font-size:.82rem;text-align:center;margin-top:14px}
+  #chatForm{display:flex;gap:6px;padding:8px;border-top:1px solid rgba(255,255,255,.1)}
+  #chatForm input{font-size:16px;padding:9px 12px;border-radius:999px}
+  #chatForm button{padding:0 14px;border-radius:999px;flex:none}
+  .chat-count{font-size:.7rem;color:var(--muted);padding:0 12px 6px;text-align:right}
+  /* téléphone : bulle + fenêtre */
+  body.in-room #chatBubble{display:flex;position:fixed;right:12px;bottom:calc(var(--dockH,0px) + 12px);z-index:44;width:52px;height:52px;border-radius:50%;padding:0;align-items:center;justify-content:center;font-size:1.5rem;background:var(--gold);box-shadow:0 4px 14px #0008}
+  #chatBubble .badge{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;border-radius:99px;background:var(--accent);color:#fff;font-size:.72rem;display:grid;place-items:center;padding:0 5px}
+  body.in-room #chat.open{display:flex;top:52px;right:8px;width:min(92vw,340px);height:min(52vh,400px);height:min(52dvh,400px);border-radius:16px}
+  #chat .chat-head .small{display:inline-block}
+  /* ordinateur : panneau fixe à droite, style Twitch */
+  @media (min-width:900px){
+    .table{height:clamp(360px,64vh,580px);height:clamp(360px,64dvh,580px)}
+    body.in-room{padding-right:300px}
+    body.in-room #chat{display:flex;top:0;right:0;bottom:0;width:300px;height:auto;border-radius:0;border-width:0 0 0 1px}
+    body.in-room #chatBubble{display:none}
+    #chat .chat-head .small{display:none}
+    #chatMsgs{font-size:.92rem}
+  }
+  @media (max-width:420px){.seat{width:66px}.seat .av{width:32px;height:32px}.seat .nm{font-size:.72rem}}
 </style>
 </head>
 <body>
@@ -121,6 +185,7 @@
         <button id="btnJoin" class="ghost" style="flex:0 0 auto">Rejoindre</button>
       </div>
     </div>
+    <p class="sub" id="ver" style="font-size:.75rem;opacity:.7;margin:0 0 10px"></p>
     <details class="panel"><summary>Règles</summary>
       <div style="font-size:.9rem;line-height:1.5;margin-top:8px;color:#e6f2ea">
         Les 54 cartes (dont 2 jokers) sont distribuées. Le premier joueur pose <b>1 à 4 cartes face cachées</b> et annonce un chiffre (« un six »). Chacun son tour pose 1 à 4 cartes en prétendant que ce sont aussi des six, ou <b>passe</b>.<br><br>
@@ -145,6 +210,7 @@
     <div class="panel">
       <label>Joueurs (<span id="lobbyCount">0</span>/10)</label>
       <ul class="plist" id="lobbyList"></ul>
+      <button id="btnAddBot" class="ghost hidden" style="width:100%;margin-bottom:8px">🤖 Ajouter un bot</button>
       <button id="btnStart" style="width:100%">Lancer la partie</button>
       <p id="lobbyWait" class="sub hidden" style="margin:12px 0 0">En attente de l'hôte…</p>
     </div>
@@ -156,10 +222,15 @@
 <div id="game" class="screen hidden">
   <div class="bar"><button class="ghost small" id="btnLog">📜 Journal</button><span id="gameCode"></span><button class="ghost small" id="btnQuit">🚪 Quitter</button></div>
   <div class="scrollarea">
-    <div class="top" id="opps"></div>
-    <div class="mid">
-      <div class="pile" id="pile"></div>
-      <div class="announce" id="announce"></div>
+    <div class="table" id="table">
+      <div class="felt"></div>
+      <div class="center">
+        <div class="pile" id="pile"></div>
+        <div class="announce" id="announce"></div>
+      </div>
+      <div id="seats"></div>
+    </div>
+    <div class="belowtable">
       <div class="counts" id="counts"></div>
       <div class="status" id="status"></div>
       <div class="ranks hidden" id="ranks"></div>
@@ -179,12 +250,24 @@
 
 <div id="overlay" class="overlay hidden"></div>
 
+<!-- CHAT -->
+<button id="chatBubble" aria-label="Ouvrir le chat">💬<span class="badge hidden" id="chatBadge">0</span></button>
+<div id="chat">
+  <div class="chat-head"><span>💬 Chat</span><button class="ghost small" id="chatClose">✕</button></div>
+  <div id="chatMsgs"></div>
+  <form id="chatForm" autocomplete="off">
+    <input id="chatIn" maxlength="300" placeholder="Écris un message…" enterkeyhint="send" autocomplete="off">
+    <button type="submit">➤</button>
+  </form>
+</div>
+
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
   const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
   let ws, state = null, selected = new Set(), pickedRank = null;
   let session = null, firstState = true, seenReveal = 0, revealUntil = 0, logOpen = false;
+  let chat = [], bubbles = {}, chatOpen = false, unread = 0, bubbleTimer = null;
   try { session = JSON.parse(localStorage.getItem('tb_session') || 'null'); } catch (e) {}
   $('name').value = localStorage.getItem('tb_name') || '';
   const urlRoom = new URLSearchParams(location.search).get('room');
@@ -219,6 +302,9 @@
       if (m.type === 'joined') { saveSession({ code: m.code, playerId: m.playerId }); }
       else if (m.type === 'rejoin_failed') { saveSession(null); state = null; $('overlay').classList.add('hidden'); show('home'); }
       else if (m.type === 'left') resetAfterQuit();
+      else if (m.type === 'kicked') { resetAfterQuit(); toast('Tu as été expulsé par l\'hôte.'); }
+      else if (m.type === 'chat_history') { chat = m.msgs || []; renderChat(true); }
+      else if (m.type === 'chat') onChat(m.m);
       else if (m.type === 'error') toast(m.message);
       else if (m.type === 'state') onState(m);
     };
@@ -227,6 +313,8 @@
   function resetAfterQuit() {
     saveSession(null);
     state = null; selected = new Set(); pickedRank = null; firstState = true; logOpen = false;
+    chat = []; bubbles = {}; chatOpen = false; unread = 0; renderChat(true);
+    document.body.classList.remove('in-room'); $('chat').classList.remove('open');
     localStorage.removeItem('tb_name');
     $('name').value = ''; $('codeIn').value = '';
     $('overlay').classList.add('hidden'); $('logbox').classList.add('hidden');
@@ -235,18 +323,55 @@
   }
 
   function onState(s) {
-    const prevTurn = state && state.turnId;
+    const prev = state;
     state = s;
     if (firstState) { seenReveal = s.reveal ? s.reveal.seq : 0; firstState = false; }
     selected = new Set([...selected].filter((id) => s.hand.some((c) => c.id === id)));
     if (!s.can.chooseRank) pickedRank = null;
-    if (s.turnId !== prevTurn && s.turnId === s.youId && navigator.vibrate) navigator.vibrate(120);
+    else if (!(prev && prev.can.chooseRank)) setTimeout(() => { const r = $('ranks'); if (r && r.scrollIntoView) r.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 50);
+    if (s.turnId !== (prev && prev.turnId) && s.turnId === s.youId && navigator.vibrate) navigator.vibrate(120);
+    let pickup = null;
     if (s.reveal && s.reveal.seq > seenReveal) {
       seenReveal = s.reveal.seq;
       revealUntil = Date.now() + 3800;
-      setTimeout(render, 3850);
+      pickup = s.reveal;
+      setTimeout(() => { render(); flyPickup(pickup); }, 3850);
     }
     render();
+    // animation : les cartes volent du joueur vers le tapis quand quelqu'un pose
+    if (prev && !pickup && s.phase === 'playing' && prev.phase === 'playing' && s.lastPlacerId
+        && s.pileCount > prev.pileCount && s.lastCount > 0) {
+      flyCards(seatEl(s.lastPlacerId) || $('hand'), $('pile'), s.lastCount);
+    }
+  }
+
+  /* ---- animations ---- */
+  const seatEl = (pid) => document.querySelector(`.seat[data-pid="${pid}"]`);
+  function flyCards(from, to, n) {
+    if (!from || !to) return;
+    const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+    if (!a.width || !b.width) return;
+    const w = 40, h = 58;
+    for (let i = 0; i < Math.min(n, 8); i++) {
+      const el = document.createElement('div');
+      el.className = 'card back fly';
+      el.style.cssText = `width:${w}px;height:${h}px;left:${a.left + a.width / 2 - w / 2}px;top:${a.top + a.height / 2 - h / 2}px;opacity:1;`;
+      document.body.append(el);
+      const dx = b.left + b.width / 2 - (a.left + a.width / 2) + (i - n / 2) * 3;
+      const dy = b.top + b.height / 2 - (a.top + a.height / 2) + i * -2;
+      const delay = i * 70;
+      setTimeout(() => {
+        el.style.transform = `translate(${dx}px,${dy}px) rotate(${(i % 2 ? 1 : -1) * (8 + i * 3)}deg)`;
+        el.style.opacity = '.85';
+      }, 20 + delay);
+      setTimeout(() => el.remove(), 900 + delay);
+    }
+  }
+  function flyPickup(r) {
+    if (!state || !r) return;
+    const seat = seatEl(r.loserId);
+    flyCards($('pile'), seat || $('hand'), Math.min(r.count, 8));
+    if (seat) setTimeout(() => { seat.classList.add('bump'); setTimeout(() => seat.classList.remove('bump'), 700); }, 600);
   }
 
   /* ---- rendu ---- */
@@ -270,6 +395,7 @@
   const name = (id) => (state.players.find((p) => p.id === id) || {}).name || '?';
 
   function render() {
+    document.body.classList.toggle('in-room', !!state);
     if (!state) return show('home');
     if (state.phase === 'lobby') return renderLobby();
     show('game');
@@ -278,38 +404,76 @@
 
   function renderLobby() {
     show('lobby');
+    updateDock();
     $('lobbyCode').textContent = state.code;
     $('lobbyCount').textContent = state.players.length;
+    const host = state.hostId === state.youId;
     const ul = $('lobbyList'); ul.textContent = '';
     for (const p of state.players) {
       const li = document.createElement('li');
-      const s = document.createElement('span'); s.textContent = p.name;
+      const s = document.createElement('span'); s.className = 'grow'; s.textContent = p.name;
       if (p.id === state.hostId) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'hôte'; s.append(t); }
       if (p.id === state.youId) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'toi'; s.append(t); }
+      if (p.bot) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'bot'; s.append(t); }
       li.append(s);
       if (!p.connected) { li.classList.add('off'); li.append('hors ligne'); }
+      if (host && p.id !== state.youId) {
+        const k = document.createElement('button'); k.className = 'kickbtn'; k.textContent = p.bot ? 'Retirer' : 'Expulser';
+        k.onclick = () => send({ type: 'kick', playerId: p.id });
+        li.append(k);
+      }
       ul.append(li);
     }
-    const host = state.hostId === state.youId;
+    $('btnAddBot').classList.toggle('hidden', !host);
+    $('btnAddBot').disabled = state.players.length >= 10;
     $('btnStart').classList.toggle('hidden', !host);
     $('btnStart').disabled = state.players.filter((p) => p.connected).length < 2;
+    $('btnStart').textContent = $('btnStart').disabled ? 'Il faut 2 joueurs (ajoute un bot !)' : 'Lancer la partie';
     $('lobbyWait').classList.toggle('hidden', host);
   }
 
   function renderGame() {
     const me = state.players.find((p) => p.id === state.youId);
     $('gameCode').textContent = 'Salon ' + state.code;
-    // adversaires dans l'ordre de jeu, à partir de celui qui suit
+    // joueurs autour de la table : moi en bas, les autres répartis en arc (gauche → haut → droite) dans l'ordre de jeu
     const i = state.players.indexOf(me);
     const others = state.players.slice(i + 1).concat(state.players.slice(0, i));
-    const opps = $('opps'); opps.textContent = '';
-    for (const p of others) {
+    const seats = $('seats'); seats.textContent = '';
+    const nOpp = others.length;
+    const spread = nOpp <= 1 ? 0 : Math.min(200, 60 + 45 * (nOpp - 1));
+    const placeSeat = (p, x, y, isMe) => {
       const d = document.createElement('div');
-      d.className = 'opp' + (p.finished || p.left ? ' done' : '') + (p.id === state.turnId ? ' turn' : '') + (p.id === state.lastPlacerId ? ' last' : '') + (p.connected ? '' : ' off');
-      const n = document.createElement('div'); n.className = 'n'; n.textContent = p.name + (p.connected || p.left ? '' : ' (hors ligne)');
-      const c = document.createElement('div'); c.className = 'c'; c.textContent = p.left ? '🚪 a quitté' : p.finished ? `🏁 ${placeLabel(p.place)}` : p.count + ' carte' + (p.count > 1 ? 's' : '');
-      d.append(n, c); opps.append(d);
-    }
+      d.className = 'seat' + (isMe ? ' me' : '') + (nOpp >= 7 ? ' tight' : '') + (x < 28 ? ' edgeL' : x > 72 ? ' edgeR' : '') + (p.finished || p.left ? ' done' : '')
+        + (p.id === state.turnId ? ' turn' : '') + (p.connected || p.left ? '' : ' off');
+      d.dataset.pid = p.id;
+      d.style.left = x + '%'; d.style.top = y + '%';
+      const av = document.createElement('div'); av.className = 'av';
+      av.style.background = colorOf(p.name, 62, 62);
+      av.textContent = p.bot ? '🤖' : (Array.from(p.name)[0] || '?').toUpperCase();
+      const nm = document.createElement('div'); nm.className = 'nm';
+      nm.textContent = (p.bot ? p.name.replace(/^🤖\s*/, '') : p.name) + (isMe ? ' (toi)' : '');
+      const ct = document.createElement('div'); ct.className = 'ct';
+      if (p.left) ct.textContent = '🚪 parti';
+      else if (p.finished) ct.textContent = `🏁 ${placeLabel(p.place)}`;
+      else { const mc = document.createElement('span'); mc.className = 'mc'; ct.append(mc, String(p.count)); }
+      const tg = document.createElement('div'); tg.className = 'tg';
+      tg.textContent = !p.connected && !p.left ? 'hors ligne' : (p.id === state.lastPlacerId ? 'dernier à poser' : '');
+      const say = document.createElement('div'); say.className = 'say'; say.append(document.createElement('span'));
+      d.append(av, nm, ct, tg, say);
+      if (state.hostId === state.youId && !isMe && !p.left) {
+        const kb = document.createElement('button'); kb.className = 'kick'; kb.title = 'Expulser'; kb.textContent = '✕';
+        kb.onclick = (e) => { e.stopPropagation(); if (confirm(`Expulser ${p.name} de la partie ?`)) send({ type: 'kick', playerId: p.id }); };
+        d.append(kb);
+      }
+      seats.append(d);
+    };
+    others.forEach((p, idx) => {
+      const t = nOpp === 1 ? 0.5 : idx / (nOpp - 1);
+      const th = (90 - spread / 2 + spread * t) * Math.PI / 180;   // 0° = gauche, 90° = haut, 180° = droite
+      placeSeat(p, 50 - 41 * Math.cos(th), 54 - 34 * Math.sin(th), false);
+    });
+    placeSeat(me, 50, 91, true);
+    updateBubbles();
 
     // tapis
     const pile = $('pile'); pile.textContent = '';
@@ -346,7 +510,7 @@
           : `À toi ! Pose 1 à ${state.maxPerTurn} cartes « ${state.rankLabel} » (vraies ou fausses), passe, ou accuse ${last ? last.name : ''}.`;
       } else if (state.turnId) {
         st.textContent = `Au tour de ${name(state.turnId)}…`;
-        if (state.can.accuse) { st.textContent += ` Tu peux quand même accuser ${name(state.lastPlacerId)} !`; st.classList.add('me'); }
+        if (state.can.accuse) { st.textContent = `Au tour de ${name(state.turnId)} · tu peux accuser ${name(state.lastPlacerId)} !`; st.classList.add('me'); }
       }
     } else st.textContent = '';
 
@@ -386,6 +550,7 @@
     const lb = $('logbox'); lb.classList.toggle('hidden', !logOpen); lb.textContent = '';
     for (const l of state.log.slice().reverse()) { const p = document.createElement('p'); p.textContent = l; lb.append(p); }
 
+    updateDock();
     renderOverlay();
   }
 
@@ -403,7 +568,8 @@
       for (let k = 0; k < r.played; k++) card.append(Object.assign(document.createElement('div'), { className: 'card back big' }));
       const v = document.createElement('h2');
       v.className = 'verdict ' + (r.bluff ? 'bad' : 'ok');
-      v.textContent = r.bluff ? `Bluff ! ${name(r.loserId)} ramasse ${r.count} cartes` : `Pas de bluff ! ${name(r.loserId)} ramasse ${r.count} cartes`;
+      const pick = `${name(r.loserId)} ramasse ${r.count} carte${r.count > 1 ? 's' : ''}`;
+      v.textContent = (r.bluff ? 'Bluff ! ' : 'Pas de bluff ! ') + pick;
       ov.append(h, sub, card, v);
       return;
     }
@@ -429,7 +595,73 @@
     ov.classList.add('hidden');
   }
 
+  /* ---- couleurs, bulles, chat ---- */
+  function colorOf(nameStr, s, l) {
+    let h = 0; for (const ch of String(nameStr)) h = (h * 31 + ch.codePointAt(0)) % 360;
+    return `hsl(${h},${s}%,${l}%)`;
+  }
+  function updateBubbles() {
+    const now = Date.now(); let next = 0;
+    document.querySelectorAll('.seat').forEach((el) => {
+      const b = bubbles[el.dataset.pid], say = el.querySelector('.say');
+      const on = !!b && b.until > now;
+      say.firstChild.textContent = on ? b.text : '';
+      say.classList.toggle('show', on);
+      if (on) next = Math.max(next, b.until);
+    });
+    clearTimeout(bubbleTimer);
+    if (next) bubbleTimer = setTimeout(updateBubbles, Math.max(100, next - now + 50));
+  }
+  const isPhone = () => window.matchMedia('(max-width:899px)').matches;
+  function chatLine(m) {
+    const p = document.createElement('div'); p.className = 'msg' + (state && m.pid === state.youId ? ' mine' : '');
+    const b = document.createElement('b'); b.textContent = m.name; b.style.color = colorOf(m.name, 75, 72);
+    p.append(b, ': ', document.createTextNode(m.text));
+    return p;
+  }
+  function renderChat(full) {
+    const box = $('chatMsgs');
+    if (full) {
+      box.textContent = '';
+      if (!chat.length) { const e = document.createElement('div'); e.className = 'chat-empty'; e.textContent = 'Aucun message pour l\'instant. Dis bonjour ! 👋'; box.append(e); }
+      else chat.forEach((m) => box.append(chatLine(m)));
+      box.scrollTop = box.scrollHeight;
+    }
+    const bd = $('chatBadge'); bd.textContent = unread > 9 ? '9+' : unread; bd.classList.toggle('hidden', !unread);
+  }
+  function onChat(m) {
+    chat.push(m); if (chat.length > 60) chat.shift();
+    const box = $('chatMsgs');
+    const empty = box.querySelector('.chat-empty'); if (empty) empty.remove();
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    box.append(chatLine(m));
+    while (box.children.length > 60) box.firstChild.remove();
+    if (nearBottom || (state && m.pid === state.youId)) box.scrollTop = box.scrollHeight;
+    bubbles[m.pid] = { text: m.text, until: Date.now() + 6500 };
+    updateBubbles();
+    if (isPhone() && !chatOpen && !(state && m.pid === state.youId)) { unread++; renderChat(false); }
+  }
+  function setChatOpen(v) {
+    chatOpen = v; $('chat').classList.toggle('open', v);
+    if (v) { unread = 0; renderChat(false); $('chatMsgs').scrollTop = $('chatMsgs').scrollHeight; if (!isPhone()) $('chatIn').focus(); }
+  }
+  function updateDock() {
+    const d = document.querySelector('.dock');
+    const h = d && !$('game').classList.contains('hidden') ? d.offsetHeight : 0;
+    document.documentElement.style.setProperty('--dockH', h + 'px');
+  }
+  window.addEventListener('resize', updateDock);
+  if (window.ResizeObserver) new ResizeObserver(updateDock).observe(document.querySelector('.dock'));
+
   /* ---- actions ---- */
+  $('chatBubble').onclick = () => setChatOpen(!chatOpen);
+  $('chatClose').onclick = () => setChatOpen(false);
+  $('chatForm').onsubmit = (e) => {
+    e.preventDefault();
+    const t = $('chatIn').value.trim(); if (!t) return;
+    send({ type: 'chat', text: t }); $('chatIn').value = '';
+  };
+  $('btnAddBot').onclick = () => send({ type: 'add_bot' });
   $('btnCreate').onclick = () => {
     const n = $('name').value.trim() || 'Joueur'; localStorage.setItem('tb_name', n);
     firstState = true; send({ type: 'create', name: n });
@@ -459,6 +691,11 @@
   $('btnSkip').onclick = () => send({ type: 'skip' });
   $('btnAccuse').onclick = () => send({ type: 'accuse' });
   $('btnLog').onclick = () => { logOpen = !logOpen; if (state) renderGame(); };
+
+  const PAGE_VERSION = 'v7-bots-chat';
+  fetch('/version', { cache: 'no-store' }).then((r) => r.text()).then((v) => {
+    $('ver').textContent = `Page ${PAGE_VERSION} · serveur ${v.slice(0, 30)}` + (v.trim() === PAGE_VERSION ? '' : ' ⚠️ versions différentes');
+  }).catch(() => { $('ver').textContent = `Page ${PAGE_VERSION} · serveur ancien (sans bots)`; });
 
   connect();
 })();
