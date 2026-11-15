@@ -22,6 +22,8 @@
   button:disabled{opacity:.4;cursor:not-allowed}
   button.danger{background:var(--accent);color:#fff}
   button.ghost{background:rgba(255,255,255,.14);color:#fff}
+  #btnJoin{transition:background .15s,color .15s,transform .15s}
+  #btnJoin.ready{background:var(--gold);color:#1b1b1b;transform:scale(1.04)}
   input{font:inherit;padding:12px 14px;border-radius:12px;border:2px solid transparent;width:100%;background:#fff;color:#111}
   input:focus{outline:none;border-color:var(--gold)}
   .screen{min-height:100%;display:flex;flex-direction:column}
@@ -369,7 +371,7 @@
     chat = []; bubbles = {}; chatOpen = false; unread = 0; renderChat(true);
     document.body.classList.remove('in-room'); $('chat').classList.remove('open');
     localStorage.removeItem('tb_name');
-    $('name').value = ''; $('codeIn').value = '';
+    $('name').value = ''; $('codeIn').value = ''; $('btnJoin').classList.remove('ready');
     $('overlay').classList.add('hidden'); $('logbox').classList.add('hidden');
     try { history.replaceState(null, '', location.pathname); } catch (e) {}
     show('home');
@@ -744,6 +746,9 @@
     send({ type: 'chat', text: t }); $('chatIn').value = '';
   };
   const addBot = () => { send({ type: 'add_bot', name: $('botName').value }); $('botName').value = ''; };
+  const updateJoinBtn = () => $('btnJoin').classList.toggle('ready', $('codeIn').value.trim().length === 4);
+  $('codeIn').addEventListener('input', updateJoinBtn);
+  updateJoinBtn();
   $('btnAddBot').onclick = addBot;
   $('jokersSwitch').onclick = () => { if (state && state.hostId === state.youId) send({ type: 'set_jokers', value: !state.jokers }); };
   $('botName').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addBot(); } };
