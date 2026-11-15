@@ -20,7 +20,8 @@
   button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:12px 18px;font-weight:700;color:#1b1b1b;background:var(--gold)}
   button:disabled{opacity:.4;cursor:not-allowed}
   button.danger{background:var(--accent);color:#fff}
-  button.ghost{background:rgba(255,255,255,.14);color:#fff}
+  button.ghost{background:rgba(255,255,255,.14);color:#fff;transition:background-color .22s ease,color .22s ease}
+  button.ghost.ready{background:var(--gold);color:var(--ink)}
   input{font:inherit;padding:12px 14px;border-radius:12px;border:2px solid transparent;width:100%;background:#fff;color:#111}
   input:focus{outline:none;border-color:var(--gold)}
   .screen{min-height:100%;display:flex;flex-direction:column}
@@ -278,6 +279,14 @@
   const urlRoom = new URLSearchParams(location.search).get('room');
   if (urlRoom) $('codeIn').value = urlRoom.toUpperCase().slice(0, 4);
 
+  const codeIn = $('codeIn');
+  const btnJoin = $('btnJoin');
+  function updateJoinButton() {
+    btnJoin.classList.toggle('ready', codeIn.value.trim().length === 4);
+  }
+  codeIn.addEventListener('input', updateJoinButton);
+  updateJoinButton();
+
   function toast(msg) {
     const t = $('toast'); t.textContent = msg; t.classList.remove('hidden');
     clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.add('hidden'), 3200);
@@ -321,7 +330,7 @@
     chat = []; bubbles = {}; chatOpen = false; unread = 0; renderChat(true);
     document.body.classList.remove('in-room'); $('chat').classList.remove('open');
     localStorage.removeItem('tb_name');
-    $('name').value = ''; $('codeIn').value = '';
+    $('name').value = ''; $('codeIn').value = ''; updateJoinButton();
     $('overlay').classList.add('hidden'); $('logbox').classList.add('hidden');
     try { history.replaceState(null, '', location.pathname); } catch (e) {}
     show('home');
