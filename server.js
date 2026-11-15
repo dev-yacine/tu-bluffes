@@ -9,7 +9,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
-const VERSION = 'v8-bots-noms';
+const VERSION = 'v10-jokers-option';
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 
@@ -53,12 +53,14 @@ function shuffle(a) {
   }
   return a;
 }
-function makeDeck() {
+function makeDeck(withJokers = true) {
   const d = [];
   let id = 0;
   for (const s of SUITS) for (const r of RANKS) d.push({ id: id++, rank: r, suit: s });
-  d.push({ id: id++, rank: 'JOKER', suit: '' });
-  d.push({ id: id++, rank: 'JOKER', suit: '' });
+  if (withJokers) {
+    d.push({ id: id++, rank: 'JOKER', suit: '' });
+    d.push({ id: id++, rank: 'JOKER', suit: '' });
+  }
   return d;
 }
 const cardLabel = (c) => (c.rank === 'JOKER' ? 'un Joker' : `${c.rank}${c.suit}`);
@@ -71,7 +73,7 @@ function createRoom() {
   const room = {
     code: newCode(), players: [], hostId: null, phase: 'lobby',
     turnIdx: 0, currentRank: null, pile: [], lastPlay: null, lastPlacerId: null, passed: [], roundCount: 0, discarded: 0,
-    log: [], seq: 0, reveal: null, revealAt: 0, winnerId: null, ranking: [], touched: Date.now(),
+    jokers: true, log: [], seq: 0, reveal: null, revealAt: 0, winnerId: null, ranking: [], touched: Date.now(),
     chat: [], chatSeq: 0, ver: 0, botTimer: null,
   };
   rooms.set(room.code, room);
@@ -131,7 +133,7 @@ function startGame(room) {
   room.players = room.players.filter((p) => p.ws || p.bot);
   if (room.players.length < MIN_PLAYERS) fail('Il faut au moins 2 joueurs (ajoute un bot si tu es seul).');
   if (!room.players.some((p) => p.id === room.hostId)) room.hostId = (room.players.find((p) => !p.bot) || room.players[0]).id;
-  const deck = shuffle(makeDeck());
+  const deck = shuffle(makeDeck(room.jokers));
   room.players.forEach((p) => { p.hand = []; p.finished = false; p.left = false; });
   room.ranking = [];
   deck.forEach((c, i) => room.players[i % room.players.length].hand.push(c));
@@ -147,7 +149,7 @@ function startGame(room) {
   room.reveal = null;
   room.log = [];
   room.turnIdx = crypto.randomInt(room.players.length);
-  addLog(room, `La partie commence ! 54 cartes (dont 2 jokers) distribuées à ${room.players.length} joueurs.`);
+  addLog(room, `La partie commence ! ${deck.length} cartes (${room.jokers ? 'dont 2 jokers' : 'sans jokers'}) distribuées à ${room.players.length} joueurs.`);
   addLog(room, `${room.players[room.turnIdx].name} commence et choisit le premier chiffre.`);
 }
 function nextActiveIdx(room, from) {
@@ -324,6 +326,7 @@ function viewFor(room, p) {
     code: room.code,
     phase: room.phase,
     hostId: room.hostId,
+    jokers: room.jokers,
     youId: p.id,
     players: room.players.map((q) => ({ id: q.id, name: q.name, count: q.hand.length, connected: !!q.ws || !!q.bot, bot: !!q.bot, left: !!q.left, finished: !!q.finished, place: room.ranking.indexOf(q.id) + 1 || null })),
     ranking: room.ranking,
@@ -540,6 +543,11 @@ function handle(ws, msg) {
     case 'chat':
       say(room, p, msg.text, false);
       return;
+    case 'set_jokers':
+      if (room.hostId !== p.id) fail('Seul l\'hôte peut changer cette option.');
+      if (room.phase !== 'lobby') fail('Les options se règlent avant le début de la partie.');
+      room.jokers = !!msg.value;
+      break;
     case 'add_bot':
       if (room.hostId !== p.id) fail('Seul l\'hôte peut ajouter un bot.');
       if (room.phase !== 'lobby') fail('Les bots s\'ajoutent avant le début de la partie.');
