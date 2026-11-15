@@ -210,7 +210,12 @@
     <div class="panel">
       <label>Joueurs (<span id="lobbyCount">0</span>/10)</label>
       <ul class="plist" id="lobbyList"></ul>
-      <button id="btnAddBot" class="ghost hidden" style="width:100%;margin-bottom:8px">🤖 Ajouter un bot</button>
+      <div id="botAdd" class="hidden" style="margin-bottom:8px">
+        <div class="row" style="margin-bottom:6px">
+          <input id="botName" maxlength="18" placeholder="Nom du bot (facultatif)" autocomplete="off" style="font-size:16px;padding:10px 12px">
+          <button id="btnAddBot" class="ghost" style="flex:0 0 auto;padding:10px 14px">🤖 Ajouter</button>
+        </div>
+      </div>
       <button id="btnStart" style="width:100%">Lancer la partie</button>
       <p id="lobbyWait" class="sub hidden" style="margin:12px 0 0">En attente de l'hôte…</p>
     </div>
@@ -419,6 +424,14 @@
       if (p.bot) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'bot'; s.append(t); }
       li.append(s);
       if (!p.connected) { li.classList.add('off'); li.append('hors ligne'); }
+      if (host && p.bot) {
+        const rn = document.createElement('button'); rn.className = 'kickbtn'; rn.style.background = 'rgba(255,255,255,.2)'; rn.textContent = '✏️';
+        rn.title = 'Renommer'; rn.onclick = () => {
+          const n = prompt('Nouveau nom pour ce bot :', p.name.replace(/^🤖\s*/, ''));
+          if (n && n.trim()) send({ type: 'rename_bot', playerId: p.id, name: n });
+        };
+        li.append(rn);
+      }
       if (host && p.id !== state.youId) {
         const k = document.createElement('button'); k.className = 'kickbtn'; k.textContent = p.bot ? 'Retirer' : 'Expulser';
         k.onclick = () => send({ type: 'kick', playerId: p.id });
@@ -426,7 +439,7 @@
       }
       ul.append(li);
     }
-    $('btnAddBot').classList.toggle('hidden', !host);
+    $('botAdd').classList.toggle('hidden', !host);
     $('btnAddBot').disabled = state.players.length >= 10;
     $('btnStart').classList.toggle('hidden', !host);
     $('btnStart').disabled = state.players.filter((p) => p.connected).length < 2;
@@ -663,7 +676,9 @@
     const t = $('chatIn').value.trim(); if (!t) return;
     send({ type: 'chat', text: t }); $('chatIn').value = '';
   };
-  $('btnAddBot').onclick = () => send({ type: 'add_bot' });
+  const addBot = () => { send({ type: 'add_bot', name: $('botName').value }); $('botName').value = ''; };
+  $('btnAddBot').onclick = addBot;
+  $('botName').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addBot(); } };
   $('btnCreate').onclick = () => {
     const n = $('name').value.trim() || 'Joueur'; localStorage.setItem('tb_name', n);
     firstState = true; send({ type: 'create', name: n });
@@ -694,7 +709,7 @@
   $('btnAccuse').onclick = () => send({ type: 'accuse' });
   $('btnLog').onclick = () => { logOpen = !logOpen; if (state) renderGame(); };
 
-  const PAGE_VERSION = 'v7-bots-chat';
+  const PAGE_VERSION = 'v8-bots-noms';
   fetch('/version', { cache: 'no-store' }).then((r) => r.text()).then((v) => {
     $('ver').textContent = `Page ${PAGE_VERSION} · serveur ${v.slice(0, 30)}` + (v.trim() === PAGE_VERSION ? '' : ' ⚠️ versions différentes');
   }).catch(() => { $('ver').textContent = `Page ${PAGE_VERSION} · serveur ancien (sans bots)`; });

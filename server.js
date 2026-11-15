@@ -9,6 +9,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
+const VERSION = 'v8-bots-noms';
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 
@@ -81,10 +82,22 @@ function deleteRoom(room) {
   room.players.forEach((p) => clearTimeout(p.dropTimer));
   rooms.delete(room.code);
 }
-function addBot(room) {
-  const used = new Set(room.players.map((p) => p.name));
-  let name = BOT_NAMES.find((n) => !used.has(`🤖 ${n}`));
-  name = name ? `🤖 ${name}` : `🤖 Bot ${room.players.length + 1}`;
+const plain = (n) => String(n).replace(/^🤖\s*/, '').toLowerCase();
+function nameTaken(room, name, exceptId) {
+  return room.players.some((p) => p.id !== exceptId && plain(p.name) === plain(name));
+}
+/** Nom choisi par l'hôte (ou nom par défaut si vide). */
+function botName(room, raw, exceptId) {
+  const wanted = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 18);
+  if (wanted) {
+    if (nameTaken(room, wanted, exceptId)) fail(`Le nom « ${wanted} » est déjà pris.`);
+    return wanted;
+  }
+  const free = BOT_NAMES.find((n) => !nameTaken(room, n, exceptId));
+  return `🤖 ${free || 'Bot ' + (room.players.length + 1)}`;
+}
+function addBot(room, rawName) {
+  const name = botName(room, rawName);
   const p = { id: uid(), name, hand: [], ws: null, dropTimer: null, bot: true };
   room.players.push(p);
   return p;
@@ -531,8 +544,17 @@ function handle(ws, msg) {
       if (room.hostId !== p.id) fail('Seul l\'hôte peut ajouter un bot.');
       if (room.phase !== 'lobby') fail('Les bots s\'ajoutent avant le début de la partie.');
       if (room.players.length >= MAX_PLAYERS) fail('Le salon est plein.');
-      addBot(room);
+      addBot(room, msg.name);
       break;
+    case 'rename_bot': {
+      if (room.hostId !== p.id) fail('Seul l\'hôte peut renommer un bot.');
+      if (room.phase !== 'lobby') fail('Les bots se renomment avant le début de la partie.');
+      const t = byId(room, msg.playerId);
+      if (!t || !t.bot) fail('Bot introuvable.');
+      if (!String(msg.name || '').trim()) fail('Donne un nom au bot.');
+      t.name = botName(room, msg.name, t.id);
+      break;
+    }
     case 'kick': {
       if (room.hostId !== p.id) fail('Seul l\'hôte peut expulser un joueur.');
       const t = byId(room, msg.playerId);
@@ -603,12 +625,13 @@ const server = http.createServer((req, res) => {
   let url;
   try { url = decodeURIComponent(req.url.split('?')[0]); } catch (e) { res.writeHead(400); return res.end(); }
   if (url === '/healthz') { res.writeHead(200); return res.end('ok'); }
+  if (url === '/version') { res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }); return res.end(VERSION); }
   if (url === '/') url = '/index.html';
   const file = path.normalize(path.join(PUBLIC, url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Introuvable'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
     res.end(data);
   });
 });
