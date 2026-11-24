@@ -9,7 +9,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
-const VERSION = 'v10-jokers-option';
+const VERSION = 'v11-bots-niveaux';
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 
@@ -98,9 +98,11 @@ function botName(room, raw, exceptId) {
   const free = BOT_NAMES.find((n) => !nameTaken(room, n, exceptId));
   return `🤖 ${free || 'Bot ' + (room.players.length + 1)}`;
 }
-function addBot(room, rawName) {
+const LEVELS = ['easy', 'medium', 'hard'];
+const cleanLevel = (l) => (LEVELS.includes(l) ? l : 'medium');
+function addBot(room, rawName, level) {
   const name = botName(room, rawName);
-  const p = { id: uid(), name, hand: [], ws: null, dropTimer: null, bot: true };
+  const p = { id: uid(), name, hand: [], ws: null, dropTimer: null, bot: true, level: cleanLevel(level) };
   room.players.push(p);
   return p;
 }
@@ -328,7 +330,7 @@ function viewFor(room, p) {
     hostId: room.hostId,
     jokers: room.jokers,
     youId: p.id,
-    players: room.players.map((q) => ({ id: q.id, name: q.name, count: q.hand.length, connected: !!q.ws || !!q.bot, bot: !!q.bot, left: !!q.left, finished: !!q.finished, place: room.ranking.indexOf(q.id) + 1 || null })),
+    players: room.players.map((q) => ({ id: q.id, name: q.name, count: q.hand.length, connected: !!q.ws || !!q.bot, bot: !!q.bot, level: q.bot ? q.level : null, left: !!q.left, finished: !!q.finished, place: room.ranking.indexOf(q.id) + 1 || null })),
     ranking: room.ranking,
     turnId: cur ? cur.id : null,
     currentRank: room.currentRank,
@@ -386,10 +388,48 @@ const SAY = {
   caught: ['Aïe 😅', 'Bien joué…', 'Raté !'],
   win: ['Facile 😎', 'GG !', 'Merci la compagnie !'],
 };
+const LEVEL_DELAY = { easy: 1.3, medium: 1, hard: 0.9 };
 const pickOne = (a) => a[rnd(a.length)];
 
+/* probabilité hypergéométrique : au moins `need` cartes du chiffre parmi `draws` cartes tirées d'un lot de `pop` contenant `succ` bonnes cartes */
+function hyperAtLeast(pop, succ, draws, need) {
+  if (need <= 0) return 1;
+  if (need > succ || draws < need || pop <= 0) return 0;
+  const C = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i; return r; };
+  const total = C(pop, draws);
+  let p = 0;
+  for (let x = need; x <= Math.min(succ, draws); x++) p += (C(succ, x) * C(pop - succ, draws - x)) / total;
+  return Math.min(1, p);
+}
+/** Difficile : estime P(bluff) en ne se servant que de sa propre main et des infos publiques. */
+function bluffEstimate(room, b) {
+  const last = byId(room, room.lastPlacerId);
+  const rank = room.currentRank;
+  const mine = b.hand.filter((c) => c.rank === rank).length;
+  const n = room.lastPlay.cards.length;
+  const lastIds = new Set(room.lastPlay.cards.map((c) => c.id));
+  let myOut = 0, earlier = 0;                                 // mes cartes déjà au tapis (connues) / dépôts d'autres avant le dernier
+  for (const e of room.pile) {
+    if (lastIds.has(e.card.id)) continue;
+    if (e.playerId === b.id) { if (e.card.rank === rank) myOut++; } else earlier++;
+  }
+  const succ = Math.max(0, 4 - mine - myOut - Math.round(earlier * 0.4));
+  if (n > succ) return 1;                                     // pas assez de cartes possibles : bluff certain
+  const pop = Math.max(succ, (room.jokers ? 54 : 52) - b.hand.length - myOut - earlier);
+  const held = hyperAtLeast(pop, succ, last.hand.length + n, n); // il avait de quoi dire vrai
+  const bluffRate = 0.5;                                      // part de bluffeurs parmi ceux qui n'ont pas la carte
+  const honest = held / (held + (1 - held) * bluffRate);
+  return 1 - honest;
+}
 function accuseProb(room, b) {
   const last = byId(room, room.lastPlacerId);
+  const lvl = b.level || 'medium';
+  if (lvl === 'easy') return last.hand.length === 0 ? 0.5 : 0.1;
+  if (lvl === 'hard') {
+    const pb = bluffEstimate(room, b);
+    const thr = last.hand.length === 0 ? 0.12 : last.hand.length <= 2 ? 0.42 : 0.5;
+    return pb > thr ? 1 : 0.02;
+  }
   const rank = room.currentRank;
   const mine = b.hand.filter((c) => c.rank === rank).length;
   const n = room.lastPlay.cards.length;
@@ -400,19 +440,72 @@ function accuseProb(room, b) {
   if (last.hand.length <= 2) pr += 0.12;
   return Math.min(pr, 0.7);
 }
+/** Facile : joue presque au hasard, ne réfléchit pas aux probabilités. */
+function decideEasy(room, b, { rank, canSkip, hand, pick, play }) {
+  if (rank === null) {
+    const c = hand[rnd(hand.length)];
+    const r = c.rank === 'JOKER' || chance(0.4) ? RANKS[rnd(13)] : c.rank;   // annonce parfois sans lien avec ses cartes
+    return play(pick(hand.filter((x) => x === c || (r !== 'JOKER' && x.rank === c.rank)), 1 + rnd(2)), r);
+  }
+  const real = hand.filter((c) => c.rank === rank);
+  if (real.length && chance(0.75)) return play(pick(real, 1 + rnd(Math.min(2, real.length))), rank);
+  if (!canSkip || chance(0.45)) return play(pick(hand, 1 + rnd(Math.min(2, hand.length))), rank);
+  return { type: 'skip' };
+}
+/** Difficile : se débarrasse honnêtement, bluffe à une seule carte (jokers d'abord) et compte les cartes. */
+function decideHard(room, b, { rank, canSkip, hand, jokers, normal, pick, play }) {
+  const groups = {};
+  normal.forEach((c) => { (groups[c.rank] = groups[c.rank] || []).push(c); });
+  const cnt = (r) => (groups[r] ? groups[r].length : 0);
+  const lone = () => { // carte la plus isolée = la plus difficile à placer honnêtement
+    const ks = Object.keys(groups).sort((x, y) => groups[x].length - groups[y].length);
+    return ks.length ? groups[ks[0]][0] : null;
+  };
+  if (rank === null) { // je relance
+    if (!normal.length) return play(jokers.slice(0, 1), RANKS[rnd(13)]);
+    // gros paquet honnête, sinon la carte qui coûte le moins cher à annoncer
+    const best = Object.keys(groups).sort((x, y) => groups[y].length - groups[x].length)[0];
+    const g = groups[best];
+    if (hand.length <= MAX_PER_TURN && jokers.length === 0 && g.length === hand.length) return play(g, best);
+    const take = g.slice(0, MAX_PER_TURN);
+    return play(take, best);
+  }
+  const real = groups[rank] || [];
+  if (real.length) {
+    // tout poser en honnête : jamais de joker mélangé (ce serait un bluff garanti)
+    return play(real.slice(0, MAX_PER_TURN), rank);
+  }
+  const pile = room.pile.length;
+  const last = byId(room, room.lastPlacerId);
+  let bluffP = 0.5 - 0.035 * pile;
+  if (hand.length <= 3) bluffP += 0.4;
+  if (jokers.length) bluffP += 0.35;
+  if (last && last.hand.length <= 2) bluffP -= 0.25;       // des gens vont l'accuser, prudence
+  if (room.roundCount + 0 > 4) bluffP -= 0.15;             // le tapis est déjà suspect
+  if (!canSkip) bluffP = 1;
+  if (!chance(Math.max(0.05, Math.min(0.95, bluffP)))) return { type: 'skip' };
+  const card = jokers[0] || lone() || hand[0];
+  return play([card], rank);
+}
 function botDecide(room, b) {
   const rank = room.currentRank;
   const last = room.lastPlacerId ? byId(room, room.lastPlacerId) : null;
   const canAccuse = !!(room.lastPlay && last && last.id !== b.id);
   const canSkip = rank !== null && room.pile.length > 0;
   const hand = b.hand;
-  if (canAccuse && last.hand.length === 0) return chance(0.9) ? { type: 'accuse' } : { type: 'skip' };
+  const lvl = b.level || 'medium';
+  if (canAccuse && last.hand.length === 0) {
+    if (lvl === 'hard') return chance(accuseProb(room, b)) ? { type: 'accuse' } : (canSkip ? { type: 'skip' } : null);
+    return chance(lvl === 'easy' ? 0.5 : 0.9) ? { type: 'accuse' } : { type: 'skip' };
+  }
   if (canAccuse && chance(accuseProb(room, b))) return { type: 'accuse' };
   if (!hand.length) return canSkip ? { type: 'skip' } : null;
   const jokers = hand.filter((c) => c.rank === 'JOKER');
   const normal = hand.filter((c) => c.rank !== 'JOKER');
   const pick = (arr, n) => shuffle(arr.slice()).slice(0, n);
   const play = (cards, r) => ({ type: 'play', cardIds: cards.map((c) => c.id), rank: r });
+  if (lvl === 'easy') return decideEasy(room, b, { rank, canSkip, hand, pick, play });
+  if (lvl === 'hard') return decideHard(room, b, { rank, canSkip, hand, jokers, normal, pick, play });
 
   if (rank === null) { // à moi de lancer
     if (!normal.length) return play(jokers.slice(0, 1 + rnd(Math.min(2, jokers.length))), RANKS[rnd(13)]);
@@ -470,7 +563,7 @@ function scheduleBots(room) {
   if (!room.players.some((p) => !p.bot && p.ws)) return;   // plus personne ne regarde : on met en pause
   const cur = room.players[room.turnIdx];
   const events = [];
-  if (cur && cur.bot && !cur.finished) events.push({ d: 1100 + rnd(1500), fn: () => botTurn(room, cur) });
+  if (cur && cur.bot && !cur.finished) events.push({ d: (1100 + rnd(1500)) * (LEVEL_DELAY[cur.level] || 1), fn: () => botTurn(room, cur) });
   if (room.lastPlay) {
     for (const b of room.players) {
       if (!b.bot || b.finished || b === cur || b.id === room.lastPlacerId) continue;
@@ -552,8 +645,16 @@ function handle(ws, msg) {
       if (room.hostId !== p.id) fail('Seul l\'hôte peut ajouter un bot.');
       if (room.phase !== 'lobby') fail('Les bots s\'ajoutent avant le début de la partie.');
       if (room.players.length >= MAX_PLAYERS) fail('Le salon est plein.');
-      addBot(room, msg.name);
+      addBot(room, msg.name, msg.level);
       break;
+    case 'set_bot_level': {
+      if (room.hostId !== p.id) fail('Seul l\'hôte peut régler le niveau d\'un bot.');
+      if (room.phase !== 'lobby') fail('Le niveau se règle avant le début de la partie.');
+      const t = byId(room, msg.playerId);
+      if (!t || !t.bot) fail('Bot introuvable.');
+      t.level = cleanLevel(msg.level);
+      break;
+    }
     case 'rename_bot': {
       if (room.hostId !== p.id) fail('Seul l\'hôte peut renommer un bot.');
       if (room.phase !== 'lobby') fail('Les bots se renomment avant le début de la partie.');
@@ -657,14 +758,15 @@ wss.on('connection', (ws) => {
   });
   ws.on('close', () => onClose(ws));
 });
-setInterval(() => {
+if (require.main === module) setInterval(() => {
   wss.clients.forEach((ws) => { if (!ws.isAlive) return ws.terminate(); ws.isAlive = false; ws.ping(); });
 }, 30000);
-setInterval(() => {
+if (require.main === module) setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms) {
     if (now - room.touched > 3 * 3600 * 1000 && !room.players.some((p) => p.ws)) deleteRoom(room);
   }
 }, 10 * 60 * 1000);
 
-server.listen(PORT, () => console.log(`Tu bluffes ! → http://localhost:${PORT}`));
+if (require.main === module) server.listen(PORT, () => console.log(`Tu bluffes ! → http://localhost:${PORT}`));
+else module.exports = { createRoom, addBot, startGame, act, botDecide, byId, rooms, RANKS };

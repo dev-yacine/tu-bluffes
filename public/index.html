@@ -264,8 +264,13 @@
         <button id="jokersSwitch" class="switch" role="switch" aria-checked="true" aria-label="Jokers inclus"><i></i></button>
       </div>
       <div id="botAdd" class="hidden" style="margin-bottom:8px">
-        <div class="row" style="margin-bottom:6px">
-          <input id="botName" maxlength="18" placeholder="Nom du bot (facultatif)" autocomplete="off" style="font-size:16px;padding:10px 12px">
+        <div class="row" style="margin-bottom:6px;flex-wrap:wrap">
+          <input id="botName" maxlength="18" placeholder="Nom du bot (facultatif)" autocomplete="off" style="font-size:16px;padding:10px 12px;min-width:0;flex:1 1 100%">
+          <select id="botLevel" aria-label="Niveau du bot" style="flex:1 1 0;font-size:16px;padding:10px 6px;border-radius:12px;border:0;background:rgba(255,255,255,.14);color:inherit">
+            <option value="easy">🐣 Facile</option>
+            <option value="medium" selected>🤖 Moyen</option>
+            <option value="hard">😈 Difficile</option>
+          </select>
           <button id="btnAddBot" class="ghost" style="flex:0 0 auto;padding:10px 14px">🤖 Ajouter</button>
         </div>
       </div>
@@ -322,6 +327,9 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
+  const LV = { easy: { icon: '🐣', label: 'Facile' }, medium: { icon: '🤖', label: 'Moyen' }, hard: { icon: '😈', label: 'Difficile' } };
+  const LV_NEXT = { easy: 'medium', medium: 'hard', hard: 'easy' };
+  try { const l = localStorage.getItem('tb_level'); if (LV[l]) $('botLevel').value = l; } catch (e) { /* ignore */ }
   const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
   let ws, state = null, selected = new Set(), pickedRank = null;
   let session = null, firstState = true, seenReveal = 0, revealUntil = 0, logOpen = false;
@@ -475,7 +483,7 @@
       const s = document.createElement('span'); s.className = 'grow'; s.textContent = p.name;
       if (p.id === state.hostId) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'hôte'; s.append(t); }
       if (p.id === state.youId) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'toi'; s.append(t); }
-      if (p.bot) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'bot'; s.append(t); }
+      if (p.bot) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = LV[p.level] ? LV[p.level].icon : 'bot'; t.title = LV[p.level] ? LV[p.level].label : ''; s.append(t); }
       li.append(s);
       if (!p.connected) { li.classList.add('off'); li.append('hors ligne'); }
       if (host && p.bot) {
@@ -485,6 +493,9 @@
           if (n && n.trim()) send({ type: 'rename_bot', playerId: p.id, name: n });
         };
         li.append(rn);
+        const lv = document.createElement('button'); lv.className = 'kickbtn'; lv.style.background = 'rgba(255,255,255,.2)'; lv.textContent = '🎚️';
+        lv.title = 'Changer le niveau'; lv.onclick = () => send({ type: 'set_bot_level', playerId: p.id, level: LV_NEXT[p.level] || 'medium' });
+        li.append(lv);
       }
       if (host && p.id !== state.youId) {
         const k = document.createElement('button'); k.className = 'kickbtn'; k.textContent = p.bot ? 'Retirer' : 'Expulser';
@@ -521,7 +532,7 @@
       d.style.left = x + '%'; d.style.top = y + '%';
       const av = document.createElement('div'); av.className = 'av';
       av.style.background = colorOf(p.name, 62, 62);
-      av.textContent = p.bot ? '🤖' : (Array.from(p.name)[0] || '?').toUpperCase();
+      av.textContent = p.bot ? (LV[p.level] ? LV[p.level].icon : '🤖') : (Array.from(p.name)[0] || '?').toUpperCase();
       const nm = document.createElement('div'); nm.className = 'nm';
       nm.textContent = (p.bot ? p.name.replace(/^🤖\s*/, '') : p.name) + (isMe ? ' (toi)' : '');
       const ct = document.createElement('div'); ct.className = 'ct';
@@ -765,7 +776,7 @@
     const t = $('chatIn').value.trim(); if (!t) return;
     send({ type: 'chat', text: t }); $('chatIn').value = '';
   };
-  const addBot = () => { send({ type: 'add_bot', name: $('botName').value }); $('botName').value = ''; };
+  const addBot = () => { try { localStorage.setItem('tb_level', $('botLevel').value); } catch (e) { /* ignore */ } send({ type: 'add_bot', name: $('botName').value, level: $('botLevel').value }); $('botName').value = ''; };
   const updateJoinBtn = () => $('btnJoin').classList.toggle('ready', $('codeIn').value.trim().length === 4);
   $('codeIn').addEventListener('input', updateJoinBtn);
   updateJoinBtn();
@@ -802,7 +813,7 @@
   $('btnAccuse').onclick = () => send({ type: 'accuse' });
   $('btnLog').onclick = () => { logOpen = !logOpen; if (state) renderGame(); };
 
-  const PAGE_VERSION = 'v10-jokers-option';
+  const PAGE_VERSION = 'v11-bots-niveaux';
   fetch('/version', { cache: 'no-store' }).then((r) => r.text()).then((v) => {
     $('ver').textContent = `Page ${PAGE_VERSION} · serveur ${v.slice(0, 30)}` + (v.trim() === PAGE_VERSION ? '' : ' ⚠️ versions différentes');
   }).catch(() => { $('ver').textContent = `Page ${PAGE_VERSION} · serveur ancien (sans bots)`; });

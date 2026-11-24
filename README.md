@@ -51,6 +51,7 @@ Partage l'adresse https affichée. Elle ne marche que tant que ton PC et le serv
 ## Fonctions du salon
 
 - **Chat** : panneau fixe à droite sur ordinateur, bulle 💬 (avec compteur de messages non lus) sur téléphone. Le dernier message de chaque joueur apparaît aussi en bulle sous son nom à la table. Messages limités à 100 caractères (coupés avec « … »), anti-spam (5 messages / 6 s).
+- **Niveaux de bots** : 🐣 Facile (joue presque au hasard), 🤖 Moyen, 😈 Difficile (calcule la probabilité de bluff d'après sa propre main et le tapis, se débarrasse honnêtement, bluffe à une carte en commençant par ses jokers, ne mélange jamais un joker à de vraies cartes). Le niveau se choisit à l'ajout du bot et se change avec 🎚️ dans le salon.
 - **Bots** : l'hôte ajoute des bots dans le salon (bouton « Ajouter un bot ») ; ils comptent comme des joueurs, jouent, passent et accusent (aussi hors de leur tour), avec un petit délai pour rester lisibles. Ils se mettent en pause quand plus aucun humain n'est connecté.
 - **Expulsion** : l'hôte peut expulser (ou retirer un bot) depuis le salon, et expulser un joueur en pleine partie avec le ✕ sur son siège. Un joueur expulsé en partie ne peut pas se reconnecter ; ses cartes sont réparties entre les autres.
 - **Table** : chaque joueur a son siège autour de la table ; les cartes volent vers le tapis quand on pose, et vers celui qui ramasse après une accusation.
