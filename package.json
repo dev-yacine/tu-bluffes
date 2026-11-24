@@ -1,0 +1,15 @@
+{
+  "name": "tu-bluffes",
+  "version": "1.0.0",
+  "description": "Jeu de cartes multijoueur en ligne : Tu bluffes !",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
